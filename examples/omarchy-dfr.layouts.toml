@@ -74,6 +74,11 @@ close = true
 icon = "omarchy_menu"
 run = "omarchy menu"
 
+# The Babel fish: one tap = push-to-talk toggle (same as SUPER+ALT+J).
+[buttons.jarvis]
+text = "󰈺"
+run = "omarchy-jarvis listen"
+
 [buttons.workspaces]
 type = "workspaces"
 mode = "occupied"    # only workspaces holding windows, plus the current one
@@ -250,22 +255,22 @@ buttons = ["notif_dismiss", "notification", "clock", "battery"]
 # give an explicit `match`.
 
 [layouts.default]
-buttons = ["menu", "workspaces", "gap", "grp_media", "grp_display",
+buttons = ["menu", "jarvis", "workspaces", "gap", "grp_media", "grp_display",
            "grp_omarchy", "clock", "battery"]
 
 [layouts.browser]
 match = "firefox|chromium|chrome|brave|zen|vivaldi|epiphany"
-buttons = ["menu", "back", "forward", "reload", "newtab", "closetab", "gap",
+buttons = ["menu", "jarvis", "back", "forward", "reload", "newtab", "closetab", "gap",
            "grp_media", "grp_omarchy", "clock", "battery"]
 
 [layouts.terminal]
 match = "Alacritty|foot|kitty|ghostty|org\\.wezfurlong"
-buttons = ["menu", "workspaces", "gap", "copy", "paste", "clear",
+buttons = ["menu", "jarvis", "workspaces", "gap", "copy", "paste", "clear",
            "grp_media", "grp_omarchy", "clock", "battery"]
 
 [layouts.agent]
 match = "org\\.omarchy\\.agent"
-buttons = ["menu", "workspaces", "gap", "grp_media", "grp_display",
+buttons = ["menu", "jarvis", "workspaces", "gap", "grp_media", "grp_display",
            "grp_omarchy", "clock", "battery"]
 
 # The Fn-held layer. Delete this table to get plain F1–F12 back.
