@@ -84,6 +84,7 @@ Panel {
   readonly property var jarvisLangs: [["fr", "Français"], ["en", "English"], ["auto", "Auto"]]
   property int jarvisFailures: 0
   property int jarvisLessons: 0
+  property int jarvisSuggestions: 0
   readonly property var jarvisTones: ["majordome", "complice", "laconique"]
 
   // "main" | "jarvis" — which page the sidebar shows.
@@ -318,22 +319,25 @@ Panel {
   Process {
     id: radioProc
     running: false
+    // The SSID comes from the active connection, not `dev wifi`: the scan
+    // list can block for seconds (the tiles sat on "Off" meanwhile) and
+    // its active column reads "no" even for the joined network on this
+    // driver. printf guarantees exactly four lines, connected or not.
     command: ["bash", "-c",
-      'LANG=C nmcli -t -f WIFI radio 2>/dev/null\n' +
-      'LANG=C nmcli -t -f active,ssid dev wifi 2>/dev/null | grep "^yes" | head -1 | cut -d: -f2\n' +
-      'echo "--"\n' +
-      'bluetoothctl show 2>/dev/null | grep -q "Powered: yes" && echo on || echo off\n' +
-      'bluetoothctl devices Connected 2>/dev/null | grep -c "^Device" || true']
+      'w=$(LANG=C nmcli radio wifi 2>/dev/null)\n' +
+      's=$(LANG=C nmcli -t -f NAME,TYPE connection show --active 2>/dev/null | grep -m1 802-11-wireless | cut -d: -f1)\n' +
+      'b=$(bluetoothctl show 2>/dev/null | grep -q "Powered: yes" && echo on || echo off)\n' +
+      'c=$(bluetoothctl devices Connected 2>/dev/null | grep -c "^Device")\n' +
+      'printf "%s\\n%s\\n%s\\n%s\\n" "${w:-disabled}" "$s" "$b" "${c:-0}"']
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
         var lines = String(text).split("\n")
-        var sep = lines.indexOf("--")
-        if (sep === -1) return
+        if (lines.length < 4) return
         root.wifiOn = (lines[0] || "").trim() === "enabled"
-        root.wifiSsid = sep > 1 ? (lines[1] || "").trim() : ""
-        root.btOn = (lines[sep + 1] || "").trim() === "on"
-        var count = parseInt((lines[sep + 2] || "").trim(), 10)
+        root.wifiSsid = (lines[1] || "").trim()
+        root.btOn = (lines[2] || "").trim() === "on"
+        var count = parseInt((lines[3] || "").trim(), 10)
         root.btConnected = isFinite(count) ? count : 0
       }
     }
@@ -356,7 +360,8 @@ Panel {
       // which double-prints on a zero-match file and shifts every line
       // after it.
       'grep "^- \\[" "$2/FAILURES.md" 2>/dev/null | wc -l\n' +
-      'grep "^- " "$2/LEARNED.md" 2>/dev/null | wc -l', "--",
+      'grep "^- " "$2/LEARNED.md" 2>/dev/null | wc -l\n' +
+      'grep "^- \\[" "$2/SUGGESTIONS.md" 2>/dev/null | wc -l', "--",
       root.soulPath, root.jarvisMemoryDir]
     stdout: StdioCollector {
       waitForEnd: true
@@ -372,8 +377,10 @@ Panel {
         root.jarvisWake = (lines[5] || "").trim() === "on"
         var fails = parseInt((lines[6] || "").trim(), 10)
         var lessons = parseInt((lines[7] || "").trim(), 10)
+        var sugg = parseInt((lines[8] || "").trim(), 10)
         root.jarvisFailures = isFinite(fails) ? fails : 0
         root.jarvisLessons = isFinite(lessons) ? lessons : 0
+        root.jarvisSuggestions = isFinite(sugg) ? sugg : 0
       }
     }
   }
@@ -1111,7 +1118,10 @@ Panel {
                 text: modelData.charAt(0).toUpperCase() + modelData.slice(1)
                 fontSize: Style.font.caption
                 foreground: Color.popups.text
-                selected: root.jarvisTone === modelData
+                // `active` paints the selected fill but keeps the label in
+                // the foreground color — `selected` recolors the text to
+                // the accent, accent-on-accent, unreadable on this glass.
+                active: root.jarvisTone === modelData
                 onClicked: root.setJarvisTone(modelData)
               }
             }
@@ -1145,7 +1155,8 @@ Panel {
                 text: modelData[1]
                 fontSize: Style.font.caption
                 foreground: Color.popups.text
-                selected: root.jarvisLang === modelData[0]
+                // Same readable-label fix as the tone pills above.
+                active: root.jarvisLang === modelData[0]
                 onClicked: root.setJarvisLang(modelData[0])
               }
             }
@@ -1184,9 +1195,13 @@ Panel {
             Layout.fillWidth: true
             text: root.jarvisFailures + " échec" + (root.jarvisFailures > 1 ? "s" : "")
               + " en attente · " + root.jarvisLessons + " leçon" + (root.jarvisLessons > 1 ? "s" : "") + " apprise" + (root.jarvisLessons > 1 ? "s" : "")
+              + (root.jarvisSuggestions > 0
+                  ? " · " + root.jarvisSuggestions + " suggestion" + (root.jarvisSuggestions > 1 ? "s" : "")
+                  : "")
             color: root.dimColor
             font.family: Style.font.family
             font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.WordWrap
           }
 
           RowLayout {
@@ -1230,6 +1245,23 @@ Panel {
               fontSize: Style.font.caption
               foreground: Color.popups.text
               onClicked: root.editMemory("LEARNED.md")
+            }
+
+            Button {
+              Layout.fillWidth: true
+              text: "Boîte noire"
+              fontSize: Style.font.caption
+              foreground: Color.popups.text
+              tooltipText: "Chaque commande exécutée aujourd'hui"
+              // Local date, not toISOString (UTC would open yesterday's
+              // trace until 2 a.m. in Brussels).
+              onClicked: {
+                var d = new Date()
+                var day = d.getFullYear() + "-"
+                  + String(d.getMonth() + 1).padStart(2, "0") + "-"
+                  + String(d.getDate()).padStart(2, "0")
+                root.editMemory("trace/" + day + ".log")
+              }
             }
           }
         }
