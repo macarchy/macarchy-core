@@ -46,6 +46,13 @@ if [[ ${1-} == --udev ]]; then
     sudo install -m644 udev/90-battery-charge-limit.rules /etc/udev/rules.d/
     sudo udevadm control --reload
     echo "udev battery rule installed (applies on next battery 'add' event or reboot)"
+    # Touch Bar button icons: omarchy-dfr's layouts reference them by name
+    # from /etc/tiny-dfr, next to the config.toml it renders there.
+    if [[ -d /etc/tiny-dfr || -n $(command -v tiny-dfr) ]]; then
+        sudo install -d /etc/tiny-dfr
+        sudo install -m644 icons/*.svg /etc/tiny-dfr/
+        echo "Touch Bar icons installed to /etc/tiny-dfr"
+    fi
 fi
 
 echo "Installed. Wire the daemons and bindings into Hyprland: see hypr/example.lua"
