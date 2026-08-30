@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "macarchy.control-center",
+  "name": "Control Center",
+  "version": "1.0.0",
+  "author": "phmatray",
+  "description": "macOS-style control center: quick toggles for the macarchy daemons, volume, and battery at a glance",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Control Center",
+    "description": "Left sidebar with quick toggles, volume, and battery",
+    "category": "System",
+    "defaultSection": "right",
+    "allowMultiple": false
+  }
+}

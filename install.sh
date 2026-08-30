@@ -39,7 +39,7 @@ grep -q macarchy-keys "$HOME/.config/hypr/bindings.lua" 2>/dev/null || cat >> "$
 dofile(os.getenv("HOME") .. "/.config/hypr/macarchy-keys.lua")
 LUA
 mkdir -p "$HOME/.config/omarchy/plugins"
-cp -r shell-plugins/macarchy.switcher "$HOME/.config/omarchy/plugins/"
+cp -r shell-plugins/macarchy.switcher shell-plugins/macarchy.control-center shell-plugins/phmatray.notification-center "$HOME/.config/omarchy/plugins/"
 omarchy-shell -q shell enablePlugin macarchy.switcher '{}' || true
 
 if [[ ${1-} == --udev ]]; then

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "phmatray.notification-center",
+  "name": "Notification Center",
+  "version": "1.0.0",
+  "author": "phmatray",
+  "description": "macOS-style notification center: archived notification history grouped by app, with a DND toggle",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Notification Center",
+    "description": "Bell with a dropdown of recent notifications grouped by app",
+    "category": "System",
+    "defaultSection": "right",
+    "allowMultiple": false
+  }
+}
