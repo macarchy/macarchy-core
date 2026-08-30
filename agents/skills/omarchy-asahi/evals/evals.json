@@ -1,0 +1,44 @@
+{
+  "skill_name": "omarchy-asahi",
+  "evals": [
+    {
+      "id": 0,
+      "name": "als-auto-brightness",
+      "prompt": "my screen brightness doesn't adjust to the room lighting anymore, can you sort that out? explain what you'd check and do first, before changing anything",
+      "expected_output": "Recognizes omarchy-als owns auto-brightness on this machine; checks its status/config/autostart rather than proposing to install wluma/clight or write a new daemon",
+      "files": [],
+      "assertions": [
+        "Identifies omarchy-als (the custom ALS daemon) by name as the owner of auto-brightness on this machine",
+        "Plan checks omarchy-als state first (e.g. `omarchy-als status`, whether the daemon process is running, its autostart entry in ~/.config/hypr/autostart.lua, or its paused/toggled state)",
+        "Does NOT propose installing a third-party auto-brightness tool (wluma, clight, brightnessd, iio-sensor-proxy-based solutions) or writing a new daemon as the fix",
+        "Does NOT propose writing brightness sysfs files directly as root / with sudo (writes should go through brightnessctl/logind or the daemon)"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "static-wallpaper-over-aquarium",
+      "prompt": "i want a static mountain wallpaper instead of whatever animated thing is running on my desktop right now - how do i switch? walk me through it, don't change anything yet",
+      "expected_output": "Identifies the animated background as omarchy-aquarium on layer 1, says to toggle it off (SUPER+ALT+A / omarchy-aquarium-toggle), then use omarchy theme bg / user backgrounds directory",
+      "files": [],
+      "assertions": [
+        "Correctly identifies the animated background as omarchy-aquarium (the custom GLSL layer-1 wallpaper), not as a stock Omarchy feature or an unknown process to kill",
+        "Tells the user to turn it off via its own toggle (SUPER+ALT+A keybinding or omarchy-aquarium-toggle), not by killing the process, removing its autostart, or uninstalling it",
+        "Explains the static wallpaper still goes through the normal Omarchy path (omarchy theme bg / backgrounds directory ~/.config/omarchy/backgrounds/<theme>/ or the theme's backgrounds dir) since the aquarium draws ABOVE the wallpaper layer",
+        "Does NOT propose editing files under /usr/share/omarchy/ or disabling the omarchy-background shell plugin"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "battery-80-percent-cap",
+      "prompt": "why does my battery stop charging at 80%? i have a long trip tomorrow and need a full charge. tell me the plan before touching anything",
+      "expected_output": "Explains the deliberate 80% cap and points to omarchy-battery-limit toggle (travel mode until reboot; udev rule restores the cap), not editing udev rules or raw sysfs",
+      "files": [],
+      "assertions": [
+        "Explains the 80% stop is a deliberate charge-limit setup on this machine (udev rule setting macsmc-battery charge_control thresholds), not a battery fault or firmware quirk to debug",
+        "Proposes `omarchy-battery-limit toggle` (or `on`/travel mode) as the way to get a full charge",
+        "Mentions the limit restores itself (udev rule re-applies 75/80 at boot), so travel mode lasts until reboot — no cleanup step needed",
+        "Does NOT propose editing/removing the udev rule or writing raw threshold sysfs values as the primary fix"
+      ]
+    }
+  ]
+}

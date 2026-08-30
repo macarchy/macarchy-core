@@ -27,6 +27,21 @@ for ex in examples/*; do
     fi
 done
 
+# Machine-specific agent skill (companion to the packaged omarchy skill)
+mkdir -p "$HOME/.claude/skills"
+ln -sfn "$PWD/agents/skills/omarchy-asahi" "$HOME/.claude/skills/omarchy-asahi"
+
+# Cmd-key grammar and the app switcher.
+install -m644 keys/macarchy-keys.lua "$HOME/.config/hypr/macarchy-keys.lua"
+grep -q macarchy-keys "$HOME/.config/hypr/bindings.lua" 2>/dev/null || cat >> "$HOME/.config/hypr/bindings.lua" <<'LUA'
+
+-- macarchy-keys: Cmd behaves like macOS (see github.com/macarchy/omarchy-mac)
+dofile(os.getenv("HOME") .. "/.config/hypr/macarchy-keys.lua")
+LUA
+mkdir -p "$HOME/.config/omarchy/plugins"
+cp -r shell-plugins/macarchy.switcher "$HOME/.config/omarchy/plugins/"
+omarchy-shell -q shell enablePlugin macarchy.switcher '{}' || true
+
 if [[ ${1-} == --udev ]]; then
     sudo install -m644 udev/90-battery-charge-limit.rules /etc/udev/rules.d/
     sudo udevadm control --reload
