@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""omarchy-pinch - four-finger pinch gestures for the trackpad.
+
+Hyprland's gesture system only handles swipes, but libinput reports pinch
+gestures with their finger count and a running scale. This daemon watches
+`libinput debug-events` (we are in the input group, so the devices are
+readable) and fires a command when a 4+ finger pinch commits:
+
+    pinch in   ->  Launchpad: the Omarchy launcher, as macOS opens it
+    pinch out  ->  (off by default; see ACTIONS below)
+
+Two-finger pinches are untouched - they keep flowing to apps for in-app
+zoom - and three fingers belong to drag_3fg. A pinch that ends cancelled,
+or that never left the dead zone, does nothing.
+"""
+
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+
+ACTIONS = {
+    # Fired when a >=4-finger pinch ends past the threshold. Empty = disabled.
+    "in": "omarchy menu",     # Launchpad
+    "out": "",                # e.g. "omarchy-zoom reset", or hyprexpo later
+}
+SCALE_IN = 0.72               # final scale below this commits a pinch-in
+SCALE_OUT = 1.35              # ...above this, a pinch-out
+COOLDOWN = 0.6                # seconds between firings
+
+UPDATE_RE = re.compile(r"GESTURE_PINCH_UPDATE\s+\S+\s+(\d+).*?scale\s+([0-9.]+)")
+BEGIN_RE = re.compile(r"GESTURE_PINCH_BEGIN\s+\S+\s+(\d+)")
+END_RE = re.compile(r"GESTURE_PINCH_END\s+\S+\s+(\d+)(.*)")
+
+
+def log(msg):
+    print(f"omarchy-pinch: {msg}", file=sys.stderr, flush=True)
+
+
+def fire(cmd):
+    subprocess.Popen(["sh", "-c", cmd],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def main():
+    if not shutil.which("libinput"):
+        log("libinput CLI not found (install libinput-tools); exiting")
+        return 1
+
+    proc = subprocess.Popen(
+        ["stdbuf", "-oL", "libinput", "debug-events"],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+
+    fingers = 0
+    scale = 1.0
+    last_fired = 0.0
+    log("watching for 4-finger pinches")
+
+    for line in proc.stdout:
+        m = BEGIN_RE.search(line)
+        if m:
+            fingers = int(m.group(1))
+            scale = 1.0
+            continue
+        m = UPDATE_RE.search(line)
+        if m:
+            fingers = int(m.group(1))
+            scale = float(m.group(2))
+            continue
+        m = END_RE.search(line)
+        if not m:
+            continue
+
+        cancelled = "cancelled" in m.group(2)
+        if cancelled or fingers < 4:
+            continue
+        now = time.monotonic()
+        if now - last_fired < COOLDOWN:
+            continue
+
+        action = None
+        if scale <= SCALE_IN:
+            action = ACTIONS.get("in")
+        elif scale >= SCALE_OUT:
+            action = ACTIONS.get("out")
+        if action:
+            last_fired = now
+            log(f"{fingers}-finger pinch to {scale:.2f} -> {action}")
+            fire(action)
+
+    rc = proc.wait()
+    log(f"libinput debug-events exited ({rc})")
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

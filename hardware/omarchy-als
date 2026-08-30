@@ -1,0 +1,327 @@
+#!/usr/bin/env python3
+"""omarchy-als - ambient-light auto-brightness for Omarchy on Apple Silicon.
+
+Polls the AOP ambient light sensor and eases the panel backlight (and, in the
+dark, the keyboard backlight) toward a lux-based target, macOS style.
+
+  * sysfs backlight files are root-owned, so writes go through brightnessctl,
+    which asks logind SetBrightness on behalf of the session user
+  * manual brightness changes (keys, OSD) are respected: the daemon notices the
+    external write and re-learns its curve offset so the curve passes through
+    your choice at that light level; the offset persists across restarts
+  * a manual keyboard-backlight change holds until the room crosses back over
+    the dark/bright threshold, then automatic control resumes
+
+Subcommands: daemon (run in foreground), status (one-shot report),
+toggle (pause/resume a running daemon via SIGUSR1).
+"""
+
+import fcntl
+import json
+import math
+import os
+import signal
+import subprocess
+import sys
+import time
+import tomllib
+
+HOME = os.path.expanduser("~")
+CONFIG_PATH = os.path.join(HOME, ".config/omarchy-als/config.toml")
+STATE_PATH = os.path.join(HOME, ".local/state/omarchy-als/state.json")
+RUNTIME_DIR = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+PID_PATH = os.path.join(RUNTIME_DIR, "omarchy-als.pid")
+
+PANEL_DEV = "apple-panel-bl"
+KBD_DEV = "kbd_backlight"
+PANEL_DIR = f"/sys/class/backlight/{PANEL_DEV}"
+KBD_DIR = f"/sys/class/leds/{KBD_DEV}"
+ALS_NAME = "aop-sensors-als"
+
+DEFAULTS = {
+    "poll_seconds": 1.0,
+    "panel": {
+        # lux -> fraction of max brightness; interpolated in log10(lux)
+        "curve": [[1, 0.06], [10, 0.16], [100, 0.26], [600, 0.35],
+                  [2000, 0.55], [10000, 0.85], [30000, 1.0]],
+        "min_fraction": 0.03,
+        "deadband": 0.03,       # don't move for target shifts under 3% of max
+        "tau_seconds": 4.0,     # lux smoothing time constant
+    },
+    "kbd": {
+        "on_below_lux": 25,
+        "off_above_lux": 60,
+        "level": 0.35,          # fraction of max when on
+    },
+}
+
+
+def log(msg):
+    print(f"omarchy-als: {msg}", file=sys.stderr, flush=True)
+
+
+def read_int(path):
+    with open(path) as f:
+        return int(f.read().strip())
+
+
+def find_als():
+    base = "/sys/bus/iio/devices"
+    for dev in sorted(os.listdir(base)):
+        name_path = os.path.join(base, dev, "name")
+        try:
+            with open(name_path) as f:
+                if f.read().strip() == ALS_NAME:
+                    return os.path.join(base, dev, "in_illuminance_input")
+        except OSError:
+            continue
+    raise SystemExit(f"omarchy-als: no {ALS_NAME} iio device found")
+
+
+def load_config():
+    cfg = json.loads(json.dumps(DEFAULTS))  # deep copy
+    try:
+        with open(CONFIG_PATH, "rb") as f:
+            user = tomllib.load(f)
+    except FileNotFoundError:
+        return cfg
+    for key, val in user.items():
+        if isinstance(val, dict):
+            cfg.setdefault(key, {}).update(val)
+        else:
+            cfg[key] = val
+    return cfg
+
+
+def curve_frac(lux, points):
+    x = math.log10(max(lux, 0.1))
+    if x <= math.log10(points[0][0]):
+        return points[0][1]
+    for (l0, f0), (l1, f1) in zip(points, points[1:]):
+        x0, x1 = math.log10(l0), math.log10(l1)
+        if x <= x1:
+            return f0 + (f1 - f0) * (x - x0) / (x1 - x0)
+    return points[-1][1]
+
+
+def set_brightness(dev, value):
+    res = subprocess.run(
+        ["brightnessctl", "-q", "-d", dev, "set", str(int(value))],
+        capture_output=True, text=True)
+    if res.returncode != 0:
+        log(f"brightnessctl {dev} failed: {res.stderr.strip()}")
+        return False
+    return True
+
+
+def animate(dev, current, target, duration=0.6):
+    delta = target - current
+    steps = min(8, max(1, abs(delta) // 4))
+    for i in range(1, int(steps) + 1):
+        set_brightness(dev, round(current + delta * i / steps))
+        if i < steps:
+            time.sleep(duration / steps)
+
+
+def load_state():
+    try:
+        with open(STATE_PATH) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_state(state):
+    os.makedirs(os.path.dirname(STATE_PATH), exist_ok=True)
+    tmp = STATE_PATH + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(state, f)
+    os.replace(tmp, STATE_PATH)
+
+
+class Daemon:
+    def __init__(self):
+        self.cfg = load_config()
+        self.lux_path = find_als()
+        self.panel_max = read_int(f"{PANEL_DIR}/max_brightness")
+        self.kbd_max = read_int(f"{KBD_DIR}/max_brightness")
+        self.smoothed = float(read_int(self.lux_path))
+        self.paused = False
+
+        state = load_state()
+        self.offset = state.get("panel_offset")
+        self.expected_panel = read_int(f"{PANEL_DIR}/brightness")
+        self.expected_kbd = read_int(f"{KBD_DIR}/brightness")
+        self.pending_panel = None   # external value awaiting confirmation
+        self.kbd_hold = False       # manual kbd change: hands off until flip
+        self.dark = self.smoothed < self.cfg["kbd"]["on_below_lux"]
+
+        if self.offset is None:
+            # First run: adopt the current brightness as the preference at
+            # this light level, so starting the daemon never jumps the screen.
+            frac = self.expected_panel / self.panel_max
+            self.offset = self.clamp_offset(
+                frac - curve_frac(self.smoothed, self.cfg["panel"]["curve"]))
+            save_state({"panel_offset": self.offset})
+            log(f"first run: learned offset {self.offset:+.3f} "
+                f"from current brightness at {self.smoothed:.0f} lux")
+
+    def clamp_offset(self, off):
+        return max(-0.5, min(0.5, off))
+
+    def toggle_pause(self, *_):
+        self.paused = not self.paused
+        if not self.paused:
+            # Re-adopt whatever is set now; don't learn from the pause.
+            self.expected_panel = read_int(f"{PANEL_DIR}/brightness")
+            self.expected_kbd = read_int(f"{KBD_DIR}/brightness")
+            self.pending_panel = None
+        log("paused" if self.paused else "resumed")
+        try:
+            # Mirrors onto the Touch Bar via omarchy-dfr's notification page.
+            subprocess.Popen(["notify-send", "-t", "3000", "Auto-brightness",
+                              "paused" if self.paused else "resumed"])
+        except OSError:
+            pass
+
+    def smooth(self, raw, dt):
+        # Snap faster on big swings (walking outside) than on flicker.
+        tau = self.cfg["panel"]["tau_seconds"]
+        if abs(raw - self.smoothed) > max(300, self.smoothed * 3):
+            tau = min(tau, 1.0)
+        alpha = 1 - math.exp(-dt / tau)
+        self.smoothed += alpha * (raw - self.smoothed)
+
+    def tick_panel(self):
+        pcfg = self.cfg["panel"]
+        current = read_int(f"{PANEL_DIR}/brightness")
+
+        if current != self.expected_panel:
+            # External write (brightness keys, OSD). Require the same value on
+            # two consecutive polls so transient dips (idle dim, lock screen)
+            # don't get learned as a preference.
+            if self.pending_panel == current:
+                if current > 0:
+                    frac = current / self.panel_max
+                    self.offset = self.clamp_offset(
+                        frac - curve_frac(self.smoothed, pcfg["curve"]))
+                    save_state({"panel_offset": self.offset})
+                    log(f"manual change: offset now {self.offset:+.3f} "
+                        f"at {self.smoothed:.0f} lux")
+                self.expected_panel = current
+                self.pending_panel = None
+            else:
+                self.pending_panel = current
+            return
+        self.pending_panel = None
+
+        frac = max(pcfg["min_fraction"],
+                   min(1.0, curve_frac(self.smoothed, pcfg["curve"]) + self.offset))
+        target = round(frac * self.panel_max)
+        if abs(target - self.expected_panel) > pcfg["deadband"] * self.panel_max:
+            animate(PANEL_DEV, self.expected_panel, target)
+            self.expected_panel = target
+
+    def tick_kbd(self):
+        kcfg = self.cfg["kbd"]
+        was_dark = self.dark
+        if self.dark and self.smoothed > kcfg["off_above_lux"]:
+            self.dark = False
+        elif not self.dark and self.smoothed < kcfg["on_below_lux"]:
+            self.dark = True
+        if self.dark != was_dark:
+            self.kbd_hold = False
+
+        current = read_int(f"{KBD_DIR}/brightness")
+        if current != self.expected_kbd:
+            self.kbd_hold = True
+            self.expected_kbd = current
+            log("manual kbd change: holding until light level flips")
+        if self.kbd_hold:
+            return
+
+        target = round(kcfg["level"] * self.kbd_max) if self.dark else 0
+        if target != self.expected_kbd:
+            animate(KBD_DEV, self.expected_kbd, target)
+            self.expected_kbd = target
+
+    def run(self):
+        signal.signal(signal.SIGUSR1, self.toggle_pause)
+        signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+        poll = self.cfg["poll_seconds"]
+        log(f"started: {self.smoothed:.0f} lux, "
+            f"panel {self.expected_panel}/{self.panel_max}, "
+            f"offset {self.offset:+.3f}")
+        last = time.monotonic()
+        while True:
+            time.sleep(poll)
+            now = time.monotonic()
+            self.smooth(float(read_int(self.lux_path)), now - last)
+            last = now
+            if self.paused:
+                continue
+            try:
+                self.tick_panel()
+                self.tick_kbd()
+            except OSError as e:
+                log(f"tick failed: {e}")
+
+
+def acquire_lock():
+    fd = os.open(PID_PATH, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        raise SystemExit("omarchy-als: already running")
+    os.ftruncate(fd, 0)
+    os.write(fd, str(os.getpid()).encode())
+    return fd  # keep open for the lock's lifetime
+
+
+def cmd_status():
+    cfg = load_config()
+    lux = read_int(find_als())
+    panel = read_int(f"{PANEL_DIR}/brightness")
+    panel_max = read_int(f"{PANEL_DIR}/max_brightness")
+    kbd = read_int(f"{KBD_DIR}/brightness")
+    offset = load_state().get("panel_offset", 0.0)
+    base = curve_frac(lux, cfg["panel"]["curve"])
+    frac = max(cfg["panel"]["min_fraction"], min(1.0, base + offset))
+    print(f"lux            {lux}")
+    print(f"panel          {panel}/{panel_max} ({panel / panel_max:.0%})")
+    print(f"curve target   {frac:.0%} (base {base:.0%}, learned offset {offset:+.3f})")
+    print(f"kbd backlight  {kbd}")
+    try:
+        with open(PID_PATH) as f:
+            pid = int(f.read().strip() or 0)
+        os.kill(pid, 0)
+        print(f"daemon         running (pid {pid})")
+    except (OSError, ValueError):
+        print("daemon         not running")
+
+
+def cmd_toggle():
+    try:
+        with open(PID_PATH) as f:
+            pid = int(f.read().strip())
+        os.kill(pid, signal.SIGUSR1)
+        print("omarchy-als: toggled")
+    except (OSError, ValueError):
+        raise SystemExit("omarchy-als: daemon not running")
+
+
+def main():
+    cmd = sys.argv[1] if len(sys.argv) > 1 else "daemon"
+    if cmd == "daemon":
+        _lock = acquire_lock()
+        Daemon().run()
+    elif cmd == "status":
+        cmd_status()
+    elif cmd == "toggle":
+        cmd_toggle()
+    else:
+        raise SystemExit(__doc__.strip())
+
+
+if __name__ == "__main__":
+    main()

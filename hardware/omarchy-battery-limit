@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# omarchy-battery-limit — toggle the battery charge ceiling between 80% (limit
+# on, kind to the cells) and 100% (travel mode, full charge).
+#
+# The sysfs thresholds are group-writable (wheel) via
+# /etc/udev/rules.d/90-battery-charge-limit.rules, which also restores the
+# 80% limit on every boot — travel mode lasts until the next reboot.
+set -euo pipefail
+
+BAT=/sys/class/power_supply/macsmc-battery
+START=$BAT/charge_control_start_threshold
+END=$BAT/charge_control_end_threshold
+
+limit_on() {   # order matters: start must stay below end
+	echo 75 > "$START"
+	echo 80 > "$END"
+	notify-send -t 3000 "Battery limit" "charging capped at 80%" 2>/dev/null || true
+}
+
+limit_off() {
+	echo 100 > "$END"
+	echo 95 > "$START"
+	notify-send -t 3000 "Battery limit" "travel mode: charging to 100%" 2>/dev/null || true
+}
+
+case "${1:-toggle}" in
+toggle)
+	if [ "$(cat "$END")" -le 80 ]; then limit_off; else limit_on; fi
+	;;
+on)  limit_on ;;
+off) limit_off ;;
+status)
+	echo "charge window: $(cat "$START")-$(cat "$END")%  (battery now $(cat "$BAT/capacity")%)"
+	;;
+*)
+	echo "usage: omarchy-battery-limit [toggle|on|off|status]" >&2
+	exit 1
+	;;
+esac

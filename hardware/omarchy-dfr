@@ -1,0 +1,872 @@
+#!/usr/bin/env python3
+"""omarchy-dfr - a context-aware Touch Bar for Omarchy on Apple Silicon.
+
+tiny-dfr can only draw buttons and emit key codes; it cannot run commands, has
+no notion of grouping, and its config is static. This daemon supplies what's
+missing:
+
+  * it renders /etc/tiny-dfr/config.toml from ~/.config/omarchy-dfr/layouts.toml
+    and rewrites it whenever the focused window or workspace changes, which
+    tiny-dfr picks up through inotify (no service restart, no flicker)
+  * command buttons are assigned throwaway key codes F13-F24, which Hyprland
+    binds back to `omarchy-dfr press <slot>`; this daemon holds the slot map,
+    so every layout and page can reuse the same twelve codes
+  * pages give the macOS Control Strip idiom: a group button expands the bar
+    into a related set of controls, with an X to collapse back
+"""
+
+import json
+import os
+import re
+import select
+import signal
+import socket
+import struct
+import subprocess
+import sys
+import time
+import tomllib
+
+HOME = os.path.expanduser("~")
+CFG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME") or f"{HOME}/.config", "omarchy-dfr")
+CFG = os.path.join(CFG_DIR, "layouts.toml")
+OUT_DIR = "/etc/tiny-dfr"
+OUT = os.path.join(OUT_DIR, "config.toml")
+RUNTIME = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "omarchy-dfr")
+SLOTS = os.path.join(RUNTIME, "slots.json")
+PAGE_FILE = os.path.join(RUNTIME, "page")
+PID_FILE = os.path.join(RUNTIME, "daemon.pid")
+DEVICE_STATE = os.path.join(
+    os.environ.get("XDG_STATE_HOME") or f"{HOME}/.local/state", "omarchy-dfr-device.json")
+
+# Key codes handed to command buttons. Nothing else on the machine uses these,
+# so they are free to mean whatever the current layout or page says they mean.
+SLOT_KEYS = [f"F{n}" for n in range(13, 25)]
+
+
+def log(*a):
+    print(f"[omarchy-dfr {time.strftime('%H:%M:%S')}]", *a, file=sys.stderr, flush=True)
+
+
+# --------------------------------------------------------------------------
+# Hyprland IPC
+# --------------------------------------------------------------------------
+
+def hypr_dir():
+    xdg = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    base = os.path.join(xdg, "hypr")
+    sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE")
+    if sig and os.path.isdir(os.path.join(base, sig)):
+        return os.path.join(base, sig)
+    try:
+        cands = [os.path.join(base, d) for d in os.listdir(base)]
+        cands = [c for c in cands if os.path.exists(os.path.join(c, ".socket.sock"))]
+        return max(cands, key=os.path.getmtime)
+    except (OSError, ValueError):
+        return None
+
+
+def hypr_query(cmd):
+    d = hypr_dir()
+    if not d:
+        return None
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(2)
+        s.connect(os.path.join(d, ".socket.sock"))
+        s.sendall(f"j/{cmd}".encode())
+        buf = b""
+        while chunk := s.recv(65536):
+            buf += chunk
+        s.close()
+        return json.loads(buf) if buf else None
+    except (OSError, ValueError):
+        return None
+
+
+# --------------------------------------------------------------------------
+# Config
+# --------------------------------------------------------------------------
+
+def load_config():
+    with open(CFG, "rb") as f:
+        return tomllib.load(f)
+
+
+def pick_layout(cfg, win_class, win_title):
+    """First layout whose regex matches the focused window's class or title."""
+    layouts = cfg.get("layouts", {})
+    haystack = f"{win_class}\n{win_title}"
+    for name, layout in layouts.items():
+        if name in ("default", "fn"):
+            continue
+        pattern = layout.get("match", name)
+        try:
+            if re.search(pattern, haystack, re.IGNORECASE):
+                return name, layout
+        except re.error as e:
+            log(f"layout {name!r}: bad match regex ({e})")
+    return "default", layouts.get("default", {"buttons": []})
+
+
+# --------------------------------------------------------------------------
+# Rendering
+# --------------------------------------------------------------------------
+
+def toml_str(s):
+    out = str(s).replace("\\", "\\\\").replace('"', '\\"')
+    return '"' + out.replace("\n", "\\n") + '"'
+
+
+def toml_entry(fields):
+    return "    { " + ", ".join(f"{k} = {v}" for k, v in fields.items()) + " }"
+
+
+def build_button(name, btn, state, slots):
+    """Expand one named button into zero or more tiny-dfr entries."""
+    kind = btn.get("type")
+    stretch = btn.get("stretch", 1)
+
+    if kind == "spacer":
+        return [toml_entry({"Stretch": stretch})]
+
+    if kind == "clock":
+        fields = {"Time": toml_str(btn.get("format", "%H:%M")), "Action": '"Time"'}
+        if "locale" in btn:
+            fields["Locale"] = toml_str(btn["locale"])
+        fields["Stretch"] = btn.get("stretch", 3)
+        return [toml_entry(fields)]
+
+    if kind == "battery":
+        return [toml_entry({
+            "Battery": toml_str(btn.get("style", "both")),
+            "Action": '"Battery"',
+            "Stretch": btn.get("stretch", 2),
+        })]
+
+    if kind == "notification":
+        note = state.get("notification") or {}
+        text = note.get("text", "")
+        limit = btn.get("max_chars", 60)
+        if len(text) > limit:
+            text = text[:limit - 1].rstrip() + "\u2026"
+        return [toml_entry({"Text": toml_str(text), "Stretch": btn.get("stretch", 8)})]
+
+    if kind == "workspaces":
+        rows = []
+        count = btn.get("count", 5)
+        active_fmt = btn.get("active_format", "•{n}")
+        idle_fmt = btn.get("format", "{n}")
+        # Hyprland 0.56 dropped the classic dispatcher strings for a Lua API.
+        run_tpl = btn.get("run", """hyprctl dispatch 'hl.dsp.focus({workspace="{n}"})'""")
+
+        if btn.get("mode") == "occupied":
+            # Only workspaces holding windows (plus the current one). Keep a
+            # floor so the strip never collapses to a single button and the
+            # buttons to its right stop jumping around as windows come and go.
+            shown = list(state.get("occupied") or [])
+            n = 1
+            while len(shown) < btn.get("min_count", 3):
+                if n not in shown:
+                    shown.append(n)
+                shown.sort()
+                n += 1
+            shown = shown[:count]
+        else:
+            shown = list(range(1, count + 1))
+
+        for n in shown:
+            label = (active_fmt if n == state["workspace"] else idle_fmt).replace("{n}", str(n))
+            if len(slots) >= len(SLOT_KEYS):
+                log("out of F13-F24 slots; dropping workspace button")
+                break
+            slot = len(slots)
+            slots.append(run_tpl.replace("{n}", str(n)))
+            rows.append(toml_entry({
+                "Text": toml_str(label),
+                "Action": toml_str(SLOT_KEYS[slot]),
+                "Stretch": stretch,
+            }))
+        return rows
+
+    # Label: an icon (ours in /etc/tiny-dfr, stock in /usr/share/tiny-dfr, or an
+    # XDG icon theme via `theme`) or plain text.
+    fields = {}
+    if "icon" in btn:
+        fields["Icon"] = toml_str(btn["icon"])
+        if "theme" in btn:
+            fields["Theme"] = toml_str(btn["theme"])
+    else:
+        fields["Text"] = toml_str(btn.get("text", name))
+
+    def take_slot(action):
+        if len(slots) >= len(SLOT_KEYS):
+            log(f"out of F13-F24 slots; dropping button {name!r}")
+            return None
+        slots.append(action)
+        return SLOT_KEYS[len(slots) - 1]
+
+    if "page" in btn:                      # group button: expand into a page
+        key = take_slot("@page:" + btn["page"])
+        if key is None:
+            return []
+        fields["Action"] = toml_str(key)
+    elif btn.get("close"):                 # collapse back to the base layout
+        key = take_slot("@page:close")
+        if key is None:
+            return []
+        fields["Action"] = toml_str(key)
+    elif "key" in btn:
+        # Native key code - tiny-dfr emits it directly, costs no slot, and works
+        # even outside Hyprland. Adding a NEW code here needs `provision`.
+        k = btn["key"]
+        fields["Action"] = ("[" + ", ".join(toml_str(x) for x in k) + "]"
+                            if isinstance(k, list) else toml_str(k))
+    elif "run" in btn:
+        key = take_slot(btn["run"])
+        if key is None:
+            return []
+        fields["Action"] = toml_str(key)
+    else:
+        log(f"button {name!r} has no page/close/key/run; rendering as inert")
+
+    fields["Stretch"] = stretch
+    return [toml_entry(fields)]
+
+
+def resolve_source(cfg, state):
+    """What the bar should show: an open page, else the matching layout."""
+    page = state.get("page")
+    if page:
+        pages = cfg.get("pages", {})
+        if page in pages:
+            return f"page:{page}", pages[page]
+        log(f"no [pages.{page}] defined; falling back to the layout")
+    return pick_layout(cfg, state["class"], state["title"])
+
+
+def render(cfg, state):
+    settings = cfg.get("settings", {})
+    defs = cfg.get("buttons", {})
+    source_name, source = resolve_source(cfg, state)
+
+    slots, rows = [], []
+    for name in source.get("buttons", []):
+        btn = defs.get(name)
+        if btn is None:
+            log(f"{source_name}: no [buttons.{name}] defined")
+            continue
+        rows.extend(build_button(name, btn, state, slots))
+
+    fn_layout = cfg.get("layouts", {}).get("fn")
+    if fn_layout:
+        fn_slots, fn_rows = [], []
+        for name in fn_layout.get("buttons", []):
+            btn = defs.get(name)
+            if btn is not None:
+                fn_rows.extend(build_button(name, btn, state, fn_slots))
+    else:
+        fn_rows = [toml_entry({"Text": toml_str(f"F{n}"), "Action": toml_str(f"F{n}")})
+                   for n in range(1, 13)]
+
+    body = "\n".join([
+        "# Generated by omarchy-dfr. Do not edit - edit ~/.config/omarchy-dfr/layouts.toml.",
+        f"# showing: {source_name}   class: {state['class'] or '-'}",
+        "",
+        f"MediaLayerDefault = {str(settings.get('media_layer_default', False)).lower()}",
+        f"ShowButtonOutlines = {str(settings.get('outlines', True)).lower()}",
+        f"EnablePixelShift = {str(settings.get('pixel_shift', False)).lower()}",
+        f"FontTemplate = {toml_str(settings.get('font', ':bold'))}",
+        f"AdaptiveBrightness = {str(settings.get('adaptive_brightness', True)).lower()}",
+        f"ActiveBrightness = {int(settings.get('active_brightness', 128))}",
+        "",
+        "PrimaryLayerKeys = [",
+        ",\n".join(rows),
+        "]",
+        "",
+        "MediaLayerKeys = [",
+        ",\n".join(fn_rows),
+        "]",
+        "",
+    ])
+    payload = {
+        "actions": slots,
+        "page": state.get("page") or "",
+        "collapse_on_action": bool(settings.get("collapse_on_action", True)),
+    }
+    return body, payload, source_name
+
+
+def write_out(text, payload):
+    """Atomic replace - tiny-dfr must never see a half-written config."""
+    os.makedirs(RUNTIME, exist_ok=True)
+    tmp = SLOTS + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(payload, f)
+    os.replace(tmp, SLOTS)
+
+    tmp = os.path.join(OUT_DIR, ".config.toml.omarchy-dfr")
+    with open(tmp, "w") as f:
+        f.write(text)
+        f.flush()
+        os.fsync(f.fileno())
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, OUT)
+
+
+# --------------------------------------------------------------------------
+# Device provisioning
+# --------------------------------------------------------------------------
+# tiny-dfr declares its uinput key capabilities once, when it creates the
+# virtual keyboard at process start, from whatever config is on disk at that
+# moment. Hot-reloading restyles the bar but never re-declares those
+# capabilities, so a key code absent at startup is silently dropped by the
+# kernel - the button draws, and does nothing. Before tiny-dfr starts we hand
+# it a config listing every key code any layout or page could emit.
+
+def key_universe(cfg):
+    keys = set(SLOT_KEYS)
+    for btn in cfg.get("buttons", {}).values():
+        k = btn.get("key")
+        if isinstance(k, list):
+            keys.update(k)
+        elif isinstance(k, str):
+            keys.add(k)
+    return sorted(keys)
+
+
+def provisioning_config(keys):
+    rows = [toml_entry({"Text": toml_str(k), "Action": toml_str(k)}) for k in keys]
+    block = ",\n".join(rows)
+    return "\n".join([
+        "# omarchy-dfr device provisioning - transient, replaced immediately.",
+        "MediaLayerDefault = false", "ShowButtonOutlines = true", "",
+        "PrimaryLayerKeys = [", block, "]", "",
+        "MediaLayerKeys = [", block, "]", "",
+    ])
+
+
+def tiny_dfr_pid():
+    try:
+        return subprocess.run(
+            ["systemctl", "show", "tiny-dfr", "--property=MainPID", "--value"],
+            capture_output=True, text=True, timeout=5).stdout.strip() or "0"
+    except (OSError, subprocess.SubprocessError):
+        return "0"
+
+
+def ensure_device(cfg):
+    """Re-provision tiny-dfr's device when it restarted or the key set grew."""
+    keys = key_universe(cfg)
+    pid = tiny_dfr_pid()
+    try:
+        with open(DEVICE_STATE) as f:
+            prev = json.load(f)
+    except (OSError, ValueError):
+        prev = {}
+
+    if prev.get("pid") == pid and prev.get("keys") == keys:
+        return False
+
+    log(f"provisioning Touch Bar device with {len(keys)} key codes")
+    write_out(provisioning_config(keys), {"actions": [], "page": "", "collapse_on_action": True})
+    r = subprocess.run(["sudo", "-n", "systemctl", "restart", "tiny-dfr"],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        log("could not restart tiny-dfr automatically. Buttons using key codes "
+            "added since it started will not fire until you run: "
+            "sudo systemctl restart tiny-dfr")
+        return False
+
+    for _ in range(40):
+        time.sleep(0.1)
+        new_pid = tiny_dfr_pid()
+        if new_pid not in ("0", pid):
+            pid = new_pid
+            break
+
+    os.makedirs(os.path.dirname(DEVICE_STATE), exist_ok=True)
+    with open(DEVICE_STATE, "w") as f:
+        json.dump({"pid": pid, "keys": keys}, f)
+    log(f"device provisioned (tiny-dfr pid {pid})")
+    return True
+
+
+# --------------------------------------------------------------------------
+# Touch awareness
+# --------------------------------------------------------------------------
+# tiny-dfr records which button index your finger landed on and reuses that
+# index on the following motion/up events. If the config is reloaded in
+# between, it rebuilds its button array and that stale index can fall outside
+# it - which panics the daemon (it then paints a crash bitmap and hangs on
+# SIGTERM, so the bar stays dead until the service is restarted).
+#
+# It does not grab the touch device exclusively, so we can watch the same
+# events it does and simply hold redraws back until the finger is off the
+# glass. Costs nothing visually - padding every view to a constant button
+# count would work too, but Stretch is clamped to >= 1, so it would burn
+# real width.
+
+BTN_TOUCH = 330
+TOUCH_GRACE = 0.15      # let tiny-dfr finish handling the release first
+TOUCH_MAX_HOLD = 5.0    # never wedge redraws on a stuck/absent release
+EV_FMT = "llHHi"
+EV_SIZE = 24            # struct input_event on 64-bit
+
+
+def find_touch_device():
+    """The Touch Bar's touch surface, by name (never the virtual keyboard)."""
+    try:
+        with open("/proc/bus/input/devices") as f:
+            blocks = f.read().split("\n\n")
+    except OSError:
+        return None
+    for block in blocks:
+        if "Touch Bar" not in block or "Virtual" in block:
+            continue
+        for tok in block.split():
+            if tok.startswith("event"):
+                path = f"/dev/input/{tok}"
+                if os.access(path, os.R_OK):
+                    return path
+    return None
+
+
+# --------------------------------------------------------------------------
+# Desktop notifications
+# --------------------------------------------------------------------------
+# Omarchy's shell owns org.freedesktop.Notifications, so we cannot serve the
+# interface ourselves - we observe it. dbus-monitor as a subprocess drops
+# straight into the select() loop, where a python-dbus main loop would have
+# needed a second thread.
+
+NOTIFY_MATCH = "interface='org.freedesktop.Notifications',member='Notify'"
+_RE_STRING = re.compile(r'^\s+string "(.*)"$')
+_RE_BYTE = re.compile(r"^\s+variant\s+byte (\d+)")
+
+
+class NotifyParser:
+    """Turns dbus-monitor's text output into notification dicts."""
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.active = False
+        self.strings = []
+        self.urgency = 1
+        self.expect_urgency = False
+
+    def feed(self, line):
+        if line.startswith("method call") and "member=Notify" in line:
+            self.reset()
+            self.active = True
+            return None
+        if not self.active:
+            return None
+
+        m = _RE_STRING.match(line)
+        if m:
+            # Order is app_name, app_icon, summary, body - then action and hint
+            # strings, which we ignore apart from spotting the urgency key.
+            if len(self.strings) < 4:
+                self.strings.append(m.group(1))
+            elif m.group(1) == "urgency":
+                self.expect_urgency = True
+            return None
+
+        m = _RE_BYTE.match(line)
+        if m and self.expect_urgency:
+            self.urgency = int(m.group(1))
+            self.expect_urgency = False
+            return None
+
+        if line.startswith("   int32"):   # expire_timeout: last argument
+            app, _icon, summary, body = (self.strings + ["", "", "", ""])[:4]
+            self.active = False
+            if not (summary or body):
+                return None
+            text = summary if not body else f"{summary} - {body}"
+            if self.urgency >= 2:
+                text = "! " + text
+            return {"text": text, "app": app, "urgency": self.urgency}
+        return None
+
+
+def start_notify_monitor():
+    try:
+        proc = subprocess.Popen(
+            ["dbus-monitor", "--session", NOTIFY_MATCH],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        os.set_blocking(proc.stdout.fileno(), False)
+        return proc
+    except (OSError, subprocess.SubprocessError) as e:
+        log(f"could not start dbus-monitor ({e}); notifications disabled")
+        return None
+
+
+# --------------------------------------------------------------------------
+# Pages
+# --------------------------------------------------------------------------
+
+def set_page(name):
+    """Record the open page and nudge the daemon to redraw immediately."""
+    os.makedirs(RUNTIME, exist_ok=True)
+    with open(PAGE_FILE, "w") as f:
+        f.write(name or "")
+    try:
+        with open(PID_FILE) as f:
+            os.kill(int(f.read().strip()), signal.SIGUSR1)
+    except (OSError, ValueError):
+        log("daemon not reachable; page will apply on its next redraw")
+
+
+def read_page():
+    try:
+        with open(PAGE_FILE) as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+# --------------------------------------------------------------------------
+# State + daemon
+# --------------------------------------------------------------------------
+
+_last_win = ("", "")
+
+
+def current_state():
+    """Focused window + workspace, with Hyprland's transient nulls filtered out.
+
+    `activewindow` intermittently reports no focused window even while one
+    plainly is focused. Taken at face value that flaps the bar back to the
+    default layout and rewrites the config every second, so treat "no active
+    window" as real only when the workspace genuinely holds no windows.
+    """
+    global _last_win
+    win = hypr_query("activewindow") or {}
+    ws = hypr_query("activeworkspace") or {}
+    cls = win.get("class") or ""
+    title = win.get("title") or ""
+    if not cls and (ws.get("windows") or 0) > 0:
+        cls, title = _last_win
+    else:
+        _last_win = (cls, title)
+    active = ws.get("id") or 0
+    occupied = sorted({
+        w["id"] for w in (hypr_query("workspaces") or [])
+        if isinstance(w.get("id"), int) and w["id"] > 0 and (w.get("windows") or 0) > 0
+    } | ({active} if active > 0 else set()))
+    return {"class": cls, "title": title, "workspace": active, "occupied": occupied}
+
+
+_last_text = None
+
+
+def apply(cfg, state, why="", force=False):
+    """Render and write, but only when the result actually differs.
+
+    Window titles churn (spinners, tab counts, progress) without changing what
+    the bar should look like. Comparing rendered output is what keeps that
+    churn from rewriting the config - and making tiny-dfr redraw - every second.
+    """
+    global _last_text
+    text, payload, source_name = render(cfg, state)
+    # Compare only what tiny-dfr actually draws. The header comment carries the
+    # focused window class, which changes on every app switch and would
+    # otherwise force a pointless rewrite of an identical-looking bar.
+    ident = "\n".join(l for l in text.split("\n") if not l.startswith("#"))
+    if ident == _last_text and not force:
+        return source_name
+    _last_text = ident
+    write_out(text, payload)
+    log(f"rendered {source_name} ({len(payload['actions'])} action slots)"
+        f"{' <- ' + why if why else ''}")
+    return source_name
+
+
+WAKE_EVENTS = (
+    "activewindow>>", "workspace>>", "focusedmon>>", "createworkspace>>",
+    "destroyworkspace>>", "closewindow>>", "openwindow>>", "activespecial>>",
+    "fullscreen>>",
+)
+
+
+def daemon():
+    cfg = load_config()
+    cfg_mtime = os.path.getmtime(CFG)
+    if ensure_device(cfg):
+        globals()["_last_text"] = None
+
+    # Self-pipe: a bare signal handler would only be serviced when select()
+    # next returns, adding up to a second of latency to a page tap. Install it
+    # before the PID file exists - otherwise clearing the page below signals a
+    # PID with no handler yet, and the default action for SIGUSR1 kills us.
+    r_fd, w_fd = os.pipe()
+    os.set_blocking(w_fd, False)
+    os.set_blocking(r_fd, False)
+    signal.set_wakeup_fd(w_fd)
+    signal.signal(signal.SIGUSR1, lambda *_: None)
+
+    os.makedirs(RUNTIME, exist_ok=True)
+    with open(PAGE_FILE, "w") as f:   # start collapsed, no self-signal needed
+        f.write("")
+    with open(PID_FILE, "w") as f:
+        f.write(str(os.getpid()))
+
+    page = ""
+    page_since = 0.0
+    state = current_state()
+    state["page"] = page
+    last_source = apply(cfg, state, "startup", force=True)
+    last_base = last_source
+
+    d = hypr_dir()
+    if not d:
+        log("no Hyprland instance found; exiting")
+        return 1
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.connect(os.path.join(d, ".socket2.sock"))
+    log(f"listening on {os.path.join(d, '.socket2.sock')}")
+
+    touch_path = find_touch_device()
+    touch_f = None
+    if touch_path:
+        try:
+            touch_f = open(touch_path, "rb", buffering=0)
+            os.set_blocking(touch_f.fileno(), False)
+            log(f"watching {touch_path} to defer redraws during a touch")
+        except OSError as e:
+            log(f"cannot watch the touch device ({e}); redraws will not defer")
+    else:
+        log("touch device not readable; redraws will not defer")
+
+    notify_proc = None
+    notify_parser = NotifyParser()
+    notify_buf = ""
+    notification = None
+    if cfg.get("settings", {}).get("notifications", True):
+        notify_proc = start_notify_monitor()
+        if notify_proc:
+            log("watching org.freedesktop.Notifications")
+
+    buf = b""
+    dirty_since = None
+    last_cfg_check = 0.0
+    touch_down_at = None
+    touch_up_at = None
+    DEBOUNCE = 0.08
+
+    while True:
+        settings = cfg.get("settings", {})
+        page_timeout = float(settings.get("page_timeout", 8))
+        timeout = DEBOUNCE if dirty_since else 0.5
+        watch = [sock, r_fd] + ([touch_f] if touch_f else [])
+        if notify_proc and notify_proc.stdout:
+            watch.append(notify_proc.stdout)
+        r, _, _ = select.select(watch, [], [], timeout)
+
+        if r_fd in r:                      # a page tap woke us
+            try:
+                os.read(r_fd, 256)
+            except OSError:
+                pass
+            new_page = read_page()
+            if new_page != page:
+                page, page_since = new_page, time.monotonic()
+                dirty_since = time.monotonic() - DEBOUNCE  # redraw now
+
+        if notify_proc and notify_proc.stdout in r:
+            try:
+                chunk = notify_proc.stdout.read() or ""
+            except (BlockingIOError, OSError):
+                chunk = ""
+            if chunk:
+                notify_buf += chunk
+                while "\n" in notify_buf:
+                    line, notify_buf = notify_buf.split("\n", 1)
+                    note = notify_parser.feed(line)
+                    if note:
+                        notification = note
+                        page, page_since = "notification", time.monotonic()
+                        dirty_since = time.monotonic() - DEBOUNCE
+                        log(f"notification: {note['text'][:60]!r}")
+
+        if touch_f and touch_f in r:
+            try:
+                data = touch_f.read(EV_SIZE * 128) or b""
+            except (BlockingIOError, OSError):
+                data = b""
+            for off in range(0, len(data) - EV_SIZE + 1, EV_SIZE):
+                _, _, etype, code, value = struct.unpack(EV_FMT, data[off:off + EV_SIZE])
+                if etype == 1 and code == BTN_TOUCH:
+                    if value:
+                        touch_down_at = time.monotonic()
+                    else:
+                        touch_down_at, touch_up_at = None, time.monotonic()
+
+        if sock in r:
+            chunk = sock.recv(65536)
+            if not chunk:
+                log("Hyprland socket closed; exiting")
+                return 0
+            buf += chunk
+            while b"\n" in buf:
+                line, buf = buf.split(b"\n", 1)
+                if line.decode(errors="replace").startswith(WAKE_EVENTS):
+                    dirty_since = dirty_since or time.monotonic()
+
+        now = time.monotonic()
+
+        # An open page shouldn't linger once you've walked away from it.
+        expiry = (float(settings.get("notification_seconds", 5))
+                  if page == "notification" else page_timeout)
+        if page and expiry > 0 and now - page_since > expiry:
+            if page == "notification":
+                notification = None
+            page = ""
+            set_page("")
+            dirty_since = now - DEBOUNCE
+
+        if now - last_cfg_check >= 1.0:
+            last_cfg_check = now
+            try:
+                m = os.path.getmtime(CFG)
+                if m != cfg_mtime:
+                    cfg_mtime = m
+                    cfg = load_config()
+                    if ensure_device(cfg):
+                        globals()["_last_text"] = None
+                    dirty_since = now - DEBOUNCE
+                    log("layouts.toml changed; reloading")
+            except (OSError, tomllib.TOMLDecodeError) as e:
+                log(f"config reload failed, keeping previous: {e}")
+                try:
+                    cfg_mtime = os.path.getmtime(CFG)
+                except OSError:
+                    pass
+
+        # Hold the redraw while a finger is on the glass (see Touch awareness).
+        holding = bool(touch_down_at) and (now - touch_down_at) < TOUCH_MAX_HOLD
+        if not holding and touch_up_at and now - touch_up_at < TOUCH_GRACE:
+            holding = True
+
+        if dirty_since and now - dirty_since >= DEBOUNCE and not holding:
+            dirty_since = None
+            try:
+                state = current_state()
+                # Switching apps should close a page left open in the old one.
+                base, _ = pick_layout(cfg, state["class"], state["title"])
+                if base != last_base:
+                    last_base = base
+                    if page and page != "notification":
+                        page = ""
+                        set_page("")
+                state["page"] = page
+                state["notification"] = notification
+                apply(cfg, state)
+            except Exception as e:  # one bad render must not kill the daemon
+                log(f"render failed: {e}")
+
+
+def press(slot):
+    try:
+        with open(SLOTS) as f:
+            data = json.load(f)
+    except OSError:
+        log("no slot map; is the daemon running?")
+        return 1
+    actions = data.get("actions", [])
+    idx = int(slot) - 1
+    if not 0 <= idx < len(actions):
+        log(f"slot {slot} is not bound in the current view")
+        return 0
+
+    action = actions[idx]
+    if action.startswith("@page:"):
+        target = action[len("@page:"):]
+        set_page("" if target == "close" else target)
+        return 0
+
+    subprocess.Popen(action, shell=True, start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if data.get("page") and data.get("collapse_on_action"):
+        set_page("")
+    return 0
+
+
+def status():
+    cfg = load_config()
+    state = current_state()
+    state["page"] = read_page()
+    _, payload, source_name = render(cfg, state)
+    print(f"focused class : {state['class'] or '-'}")
+    print(f"focused title : {state['title'] or '-'}")
+    print(f"workspace     : {state['workspace']}")
+    print(f"open page     : {state['page'] or '(none)'}")
+    print(f"showing       : {source_name}")
+    try:
+        with open(SLOTS) as f:
+            actions = json.load(f).get("actions", [])
+        print("\nslot  key   action")
+        for i, cmd in enumerate(actions):
+            print(f"{i + 1:>4}  {SLOT_KEYS[i]:<5} {cmd}")
+    except OSError:
+        print("\n(no slot map - daemon not running)")
+    return 0
+
+
+USAGE = """omarchy-dfr - context-aware Touch Bar for Omarchy
+
+  omarchy-dfr daemon         follow Hyprland focus and render the bar
+  omarchy-dfr press <slot>   run the action bound to a Touch Bar slot (1-12)
+  omarchy-dfr page <name>    open a page ('close' returns to the layout)
+  omarchy-dfr render         render once from the current state and exit
+  omarchy-dfr status         show the focused window, view and slot map
+  omarchy-dfr provision      re-declare tiny-dfr's key capabilities (needs root)
+"""
+
+
+def main(argv):
+    if len(argv) < 2:
+        print(USAGE, file=sys.stderr)
+        return 2
+    cmd = argv[1]
+    if cmd == "daemon":
+        return daemon()
+    if cmd == "press":
+        return press(argv[2]) if len(argv) > 2 else 2
+    if cmd == "page":
+        if len(argv) < 3:
+            return 2
+        set_page("" if argv[2] == "close" else argv[2])
+        return 0
+    if cmd == "render":
+        state = current_state()
+        state["page"] = read_page()
+        apply(load_config(), state, "manual", force=True)
+        return 0
+    if cmd == "status":
+        return status()
+    if cmd == "provision":
+        cfg = load_config()
+        if not ensure_device(cfg):
+            try:
+                os.remove(DEVICE_STATE)
+            except OSError:
+                pass
+            ensure_device(cfg)
+        state = current_state()
+        state["page"] = ""
+        apply(cfg, state, "post-provision", force=True)
+        return 0
+    print(USAGE, file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv))
+    except KeyboardInterrupt:
+        sys.exit(0)

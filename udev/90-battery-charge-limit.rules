@@ -1,0 +1,7 @@
+# Cap battery charging at 80% for cell longevity, and let the wheel group
+# flip the thresholds without root (omarchy-battery-limit toggle).
+SUBSYSTEM=="power_supply", KERNEL=="macsmc-battery", ACTION=="add", \
+  ATTR{charge_control_start_threshold}="75", \
+  ATTR{charge_control_end_threshold}="80", \
+  RUN+="/usr/bin/chgrp wheel /sys%p/charge_control_start_threshold /sys%p/charge_control_end_threshold", \
+  RUN+="/usr/bin/chmod 664 /sys%p/charge_control_start_threshold /sys%p/charge_control_end_threshold"

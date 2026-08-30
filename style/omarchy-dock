@@ -1,0 +1,11 @@
+#!/bin/bash
+# Launch the macOS-style dock.
+#   -d   autohide against a hotspot, the way the macOS dock does
+#   -l   overlay layer, and deliberately no -x: an autohiding dock must float
+#        over windows rather than reserve a strip they have to tile around
+exec /usr/bin/nwg-dock-hyprland \
+  -d -hd 20 \
+  -p bottom -l overlay -a center \
+  -i 40 -mb 10 \
+  -c "omarchy-menu toggle apps" \
+  -s style.css

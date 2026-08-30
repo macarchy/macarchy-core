@@ -1,0 +1,21 @@
+# omarchy-als - ambient-light auto-brightness.
+# All values optional; these are the defaults. After editing, restart with:
+#   pkill -x omarchy-als; setsid -f omarchy-als daemon
+#
+# You rarely need to edit the curve by hand: pressing the brightness keys
+# teaches the daemon an offset (stored in ~/.local/state/omarchy-als/), so it
+# tracks your preference automatically.
+
+poll_seconds = 1.0
+
+[panel]
+# lux -> fraction of max panel brightness, interpolated in log(lux).
+curve = [[1, 0.06], [10, 0.16], [100, 0.26], [600, 0.35], [2000, 0.55], [10000, 0.85], [30000, 1.0]]
+min_fraction = 0.03   # never go dimmer than this
+deadband = 0.03       # ignore target shifts smaller than 3% of max
+tau_seconds = 4.0     # lux smoothing; big swings snap faster on their own
+
+[kbd]
+on_below_lux = 25     # keyboard backlight turns on below this
+off_above_lux = 60    # ...and off above this (gap = hysteresis)
+level = 0.35          # keyboard brightness when on, fraction of max

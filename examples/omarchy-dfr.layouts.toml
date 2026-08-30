@@ -1,0 +1,311 @@
+# omarchy-dfr — Touch Bar layouts.
+#
+# Saved changes apply immediately; the daemon watches this file.
+# Inspect what's live with:  omarchy-dfr status
+#
+# A button acts in one of four ways:
+#
+#   key  = "VolumeUp"           tiny-dfr emits that key code itself. Costs no
+#   key  = ["LeftAlt", "Left"]  action slot and works even outside Hyprland.
+#                               NOTE: adding a key code that isn't already in
+#                               use needs `omarchy-dfr provision` (root), since
+#                               tiny-dfr fixes its key capabilities at startup.
+#
+#   run  = "some command"       bound to a spare F13–F24 code that Hyprland
+#                               routes back to `omarchy-dfr press N`.
+#
+#   page = "media"             expands the bar into [pages.media] — the macOS
+#                               Control Strip idiom.
+#   close = true                collapses a page back to the layout.
+#
+# Key code names: https://docs.rs/input-linux/latest/input_linux/enum.Key.html
+# Icons resolve from /etc/tiny-dfr first, then /usr/share/tiny-dfr. Omit the
+# extension. `theme = "breeze-dark"` looks the name up in an XDG icon theme.
+
+[settings]
+outlines = true
+font = "JetBrainsMono Nerd Font:bold"
+adaptive_brightness = true   # bar brightness follows the main screen
+active_brightness = 170
+pixel_shift = true
+media_layer_default = false  # false = your layout is the resting state
+page_timeout = 8             # auto-collapse an open group after N seconds (0 = never)
+notifications = true         # mirror desktop notifications onto the bar
+notification_seconds = 5     # how long one stays up
+collapse_on_action = true    # collapse as soon as you use something in a group
+
+
+# ─── group buttons ──────────────────────────────────────────────────────────
+
+[buttons.grp_media]
+stretch = 2
+icon = "music_note"
+page = "media"
+
+[buttons.grp_display]
+stretch = 2
+icon = "brightness_high"     # stock tiny-dfr icon
+page = "display"
+
+[buttons.grp_omarchy]
+stretch = 2
+icon = "apps_grid"
+page = "omarchy"
+
+[buttons.close]
+icon = "close"
+close = true
+
+# Renders the current desktop notification. Truncated to max_chars so a long
+# body cannot overflow the button.
+[buttons.notification]
+type = "notification"
+stretch = 8
+max_chars = 60
+
+[buttons.notif_dismiss]
+icon = "close"
+close = true
+
+
+# ─── core buttons ───────────────────────────────────────────────────────────
+
+[buttons.menu]
+icon = "omarchy_menu"
+run = "omarchy menu"
+
+[buttons.workspaces]
+type = "workspaces"
+mode = "occupied"    # only workspaces holding windows, plus the current one
+min_count = 3        # ...but never fewer than this, so buttons stop jumping
+count = 6            # hard ceiling
+format = "{n}"
+active_format = "•{n}"
+
+[buttons.clock]
+type = "clock"
+format = "%H:%M"
+stretch = 2
+
+[buttons.battery]
+type = "battery"
+style = "both"
+stretch = 2
+
+[buttons.gap]
+type = "spacer"
+
+
+# ─── media (native key codes, no slot used) ─────────────────────────────────
+
+[buttons.prev]
+icon = "fast_rewind"
+key = "PreviousSong"
+
+[buttons.playpause]
+icon = "play_pause"
+key = "PlayPause"
+
+[buttons.next]
+icon = "fast_forward"
+key = "NextSong"
+
+[buttons.voldown]
+icon = "volume_down"
+key = "VolumeDown"
+
+[buttons.volup]
+icon = "volume_up"
+key = "VolumeUp"
+
+[buttons.mute]
+icon = "volume_off"
+key = "Mute"
+
+[buttons.micmute]
+icon = "mic_off"
+key = "MicMute"
+
+[buttons.search]
+icon = "search"
+key = "Search"
+
+
+# ─── display (commands, so no new key codes to provision) ───────────────────
+
+[buttons.bright_down]
+icon = "brightness_low"
+run = "omarchy-brightness-display 5%-"
+
+[buttons.bright_up]
+icon = "brightness_high"
+run = "omarchy-brightness-display +5%"
+
+[buttons.kbd_down]
+icon = "backlight_low"
+run = "omarchy-brightness-keyboard down"
+
+[buttons.kbd_up]
+icon = "backlight_high"
+run = "omarchy-brightness-keyboard up"
+
+[buttons.nightlight]
+icon = "moon"
+run = "omarchy toggle nightlight"
+
+[buttons.autobright]
+icon = "brightness_auto"
+run = "omarchy-als toggle"
+
+
+# ─── Omarchy essentials ─────────────────────────────────────────────────────
+
+[buttons.screenshot]
+icon = "camera"
+run = "omarchy capture screenshot"
+
+[buttons.clipboard]
+icon = "clipboard"
+run = "omarchy menu clipboard"
+
+[buttons.emoji]
+icon = "smiley"
+run = "omarchy menu emoji"
+
+[buttons.theme]
+icon = "palette"
+run = "omarchy menu summon style.theme"
+
+[buttons.lock]
+icon = "lock"
+run = "omarchy system lock"
+
+[buttons.batlimit]
+icon = "battery_limit"
+run = "omarchy-battery-limit toggle"
+
+
+# ─── app shortcuts (sent straight to the focused app) ───────────────────────
+
+[buttons.back]
+icon = "arrow_back"
+key = ["LeftAlt", "Left"]
+
+[buttons.forward]
+icon = "arrow_forward"
+key = ["LeftAlt", "Right"]
+
+[buttons.reload]
+icon = "reload"
+key = ["LeftCtrl", "R"]
+
+[buttons.newtab]
+icon = "plus"
+key = ["LeftCtrl", "T"]
+
+[buttons.closetab]
+icon = "close"
+key = ["LeftCtrl", "W"]
+
+[buttons.copy]
+text = "copy"
+key = ["LeftCtrl", "LeftShift", "C"]
+
+[buttons.paste]
+text = "paste"
+key = ["LeftCtrl", "LeftShift", "V"]
+
+[buttons.clear]
+text = "clear"
+key = ["LeftCtrl", "L"]
+
+
+# ─── pages (expanded groups) ────────────────────────────────────────────────
+
+# Every page ends with the same clock+battery block as the layouts, so your
+# status readout never moves when a group opens.
+
+[pages.media]
+buttons = ["close", "prev", "playpause", "next", "mute", "voldown", "volup",
+           "micmute", "clock", "battery"]
+
+[pages.display]
+buttons = ["close", "bright_down", "bright_up", "kbd_down", "kbd_up",
+           "autobright", "nightlight", "clock", "battery"]
+
+[pages.omarchy]
+buttons = ["close", "screenshot", "clipboard", "emoji", "theme", "batlimit",
+           "lock", "clock", "battery"]
+
+# Opened automatically when a desktop notification arrives, and closed again
+# after notification_seconds. Tap the X to dismiss it early. Keeps the same
+# status block as every other view.
+[pages.notification]
+buttons = ["notif_dismiss", "notification", "clock", "battery"]
+
+
+# ─── layouts ────────────────────────────────────────────────────────────────
+# First layout whose regex matches the focused window's class or title wins;
+# [layouts.default] is the fallback. The table name IS the regex unless you
+# give an explicit `match`.
+
+[layouts.default]
+buttons = ["menu", "workspaces", "gap", "grp_media", "grp_display",
+           "grp_omarchy", "clock", "battery"]
+
+[layouts.browser]
+match = "firefox|chromium|chrome|brave|zen|vivaldi|epiphany"
+buttons = ["menu", "back", "forward", "reload", "newtab", "closetab", "gap",
+           "grp_media", "grp_omarchy", "clock", "battery"]
+
+[layouts.terminal]
+match = "Alacritty|foot|kitty|ghostty|org\\.wezfurlong"
+buttons = ["menu", "workspaces", "gap", "copy", "paste", "clear",
+           "grp_media", "grp_omarchy", "clock", "battery"]
+
+[layouts.agent]
+match = "org\\.omarchy\\.agent"
+buttons = ["menu", "workspaces", "gap", "grp_media", "grp_display",
+           "grp_omarchy", "clock", "battery"]
+
+# The Fn-held layer. Delete this table to get plain F1–F12 back.
+[layouts.fn]
+buttons = ["fn1", "fn2", "fn3", "fn4", "fn5", "fn6",
+           "fn7", "fn8", "fn9", "fn10", "fn11", "fn12"]
+
+[buttons.fn1]
+text = "F1"
+key = "F1"
+[buttons.fn2]
+text = "F2"
+key = "F2"
+[buttons.fn3]
+text = "F3"
+key = "F3"
+[buttons.fn4]
+text = "F4"
+key = "F4"
+[buttons.fn5]
+text = "F5"
+key = "F5"
+[buttons.fn6]
+text = "F6"
+key = "F6"
+[buttons.fn7]
+text = "F7"
+key = "F7"
+[buttons.fn8]
+text = "F8"
+key = "F8"
+[buttons.fn9]
+text = "F9"
+key = "F9"
+[buttons.fn10]
+text = "F10"
+key = "F10"
+[buttons.fn11]
+text = "F11"
+key = "F11"
+[buttons.fn12]
+text = "F12"
+key = "F12"

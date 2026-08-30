@@ -1,0 +1,50 @@
+#!/bin/bash
+# Switch between Apple Glass and Apple Glass Light on a schedule, the way
+# macOS's "Auto" appearance setting does.
+#
+# Two deliberate guards:
+#   - If the current theme is neither Apple Glass variant, do nothing. Picking
+#     any other theme is treated as an override, so this never yanks a theme
+#     out from under a deliberate choice.
+#   - If the correct theme is already set, do nothing. `omarchy theme set` is
+#     not free -- it restarts terminals and retints the browser -- so it should
+#     not fire on every timer tick.
+
+set -uo pipefail
+
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/auto-appearance.conf"
+LIGHT_FROM=07:00
+LIGHT_UNTIL=20:00
+DARK_THEME="Apple Glass"
+LIGHT_THEME="Apple Glass Light"
+
+# shellcheck source=/dev/null
+[[ -r $CONF ]] && source "$CONF"
+
+to_minutes() {
+  local h=${1%%:*} m=${1##*:}
+  echo $((10#$h * 60 + 10#$m))
+}
+
+now=$(to_minutes "$(date +%H:%M)")
+from=$(to_minutes "$LIGHT_FROM")
+until_=$(to_minutes "$LIGHT_UNTIL")
+
+if (( from <= until_ )); then
+  (( now >= from && now < until_ )) && want=$LIGHT_THEME || want=$DARK_THEME
+else
+  # Light window wraps past midnight.
+  (( now >= from || now < until_ )) && want=$LIGHT_THEME || want=$DARK_THEME
+fi
+
+current_slug=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
+slug() { echo "$1" | tr '[:upper:]' '[:lower:]' | tr ' ' '-'; }
+
+case "$current_slug" in
+  "$(slug "$DARK_THEME")" | "$(slug "$LIGHT_THEME")") ;;
+  *) exit 0 ;;  # user chose something else; leave it alone
+esac
+
+[[ $current_slug == "$(slug "$want")" ]] && exit 0
+
+exec omarchy theme set "$want"

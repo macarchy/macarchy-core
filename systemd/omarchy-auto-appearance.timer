@@ -1,0 +1,13 @@
+[Unit]
+Description=Check the time of day for the Omarchy appearance switch
+
+[Timer]
+# Every quarter hour on the clock, and shortly after login, so the appearance is already
+# correct by the time the desktop is usable. Persistent catches the boundary
+# being crossed while the machine was asleep.
+OnBootSec=1min
+OnCalendar=*:0/15
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,8 @@
+[Unit]
+Description=Match the Omarchy theme to the time of day (macOS Auto appearance)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/omarchy-auto-appearance
