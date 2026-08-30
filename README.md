@@ -9,6 +9,8 @@ Companion pieces live in their own repos: the
 background and the [apple-glass](https://github.com/macarchy/apple-glass) /
 [apple-glass-light](https://github.com/macarchy/apple-glass-light) themes.
 
+![Apple Glass, the aquarium and the bar on Omarchy](docs/desktop.png)
+
 ## hardware/ — Apple Silicon specific
 
 | Tool | What it does |
