@@ -31,6 +31,9 @@ CONFIG_PATH = os.path.join(HOME, ".config/omarchy-als/config.toml")
 STATE_PATH = os.path.join(HOME, ".local/state/omarchy-als/state.json")
 RUNTIME_DIR = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
 PID_PATH = os.path.join(RUNTIME_DIR, "omarchy-als.pid")
+# Exists exactly while a running daemon is paused, so `status` (and the
+# control-center tile) can see what SIGUSR1 last did.
+PAUSED_PATH = os.path.join(RUNTIME_DIR, "omarchy-als.paused")
 
 PANEL_DEV = "apple-panel-bl"
 KBD_DEV = "kbd_backlight"
@@ -166,6 +169,12 @@ class Daemon:
             log(f"first run: learned offset {self.offset:+.3f} "
                 f"from current brightness at {self.smoothed:.0f} lux")
 
+        # A previous run may have died while paused; this run starts live.
+        try:
+            os.unlink(PAUSED_PATH)
+        except OSError:
+            pass
+
     def clamp_offset(self, off):
         return max(-0.5, min(0.5, off))
 
@@ -176,6 +185,13 @@ class Daemon:
             self.expected_panel = read_int(f"{PANEL_DIR}/brightness")
             self.expected_kbd = read_int(f"{KBD_DIR}/brightness")
             self.pending_panel = None
+        try:
+            if self.paused:
+                open(PAUSED_PATH, "w").close()
+            else:
+                os.unlink(PAUSED_PATH)
+        except OSError:
+            pass
         log("paused" if self.paused else "resumed")
         try:
             # Mirrors onto the Touch Bar via omarchy-dfr's notification page.
@@ -295,7 +311,8 @@ def cmd_status():
         with open(PID_PATH) as f:
             pid = int(f.read().strip() or 0)
         os.kill(pid, 0)
-        print(f"daemon         running (pid {pid})")
+        paused = os.path.exists(PAUSED_PATH)
+        print(f"daemon         running (pid {pid}{', paused' if paused else ''})")
     except (OSError, ValueError):
         print("daemon         not running")
 
