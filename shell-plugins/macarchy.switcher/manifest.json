@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "macarchy.switcher",
+  "name": "App switcher",
+  "version": "0.1.0",
+  "author": "Macarchy",
+  "description": "macOS-style Cmd+Tab: cycle apps while Super is held, switch on release",
+  "kinds": ["overlay"],
+  "keepLoaded": true,
+  "entryPoints": {
+    "overlay": "Switcher.qml"
+  }
+}
