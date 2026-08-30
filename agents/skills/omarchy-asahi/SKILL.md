@@ -25,7 +25,7 @@ generic tools.
 | `omarchy-dfr` | Touch Bar (context-aware pages) | tiny-dfr based; see constraints below |
 | `omarchy-als` | Panel + keyboard auto-brightness | learns offsets from manual brightness keys; `omarchy-als toggle` pauses it |
 | `omarchy-battery-limit` | 80% charge cap | `toggle|on|off|status`; udev rule restores 80% at boot |
-| `omarchy-aquarium` / `-toggle` | Live GLSL wallpaper | layer 1 (`bottom`), above the wallpaper plugin; SUPER+ALT+A |
+| `omarchy-aquarium` / `-toggle` | Live GLSL wallpaper | layer 1 (`bottom`), above the wallpaper plugin; SUPER+ALT+A. Reactive: fish avoid the cursor, notifications startle the tank via `$XDG_RUNTIME_DIR/omarchy-aquarium.ctl` (fed by `omarchy-aquarium-notify`), jellies glow at night. `--no-react` disables; `omarchy-aquarium-toggle startle` tests |
 | `omarchy-pinch` | ≥4-finger pinch gestures | parses libinput events; pinch-in = launcher |
 | `omarchy-zoom` | CTRL+scroll magnifier | drives `cursor:zoom_factor` |
 | `omarchy-dock`, `omarchy-auto-appearance`, `omarchy-gtk-settings` | Dock, light/dark switching, GTK sync | |
