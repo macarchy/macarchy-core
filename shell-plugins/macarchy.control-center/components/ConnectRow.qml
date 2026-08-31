@@ -15,6 +15,8 @@ Rectangle {
   property string label: ""
   property string stateText: ""
   property bool active: false
+  // Something needs attention behind this row: the badge turns urgent.
+  property bool alert: false
 
   signal toggled()
   signal opened()
@@ -46,14 +48,14 @@ Rectangle {
       Layout.preferredHeight: Style.space(26)
       Layout.alignment: Qt.AlignVCenter
       radius: width / 2
-      color: root.active ? Color.accent : Util.alpha(root.textColor, 0.12)
+      color: root.alert ? Color.urgent : (root.active ? Color.accent : Util.alpha(root.textColor, 0.12))
 
       Behavior on color { ColorAnimation { duration: 120 } }
 
       Text {
         anchors.centerIn: parent
         text: root.glyph
-        color: root.active ? Color.popups.background : root.textColor
+        color: (root.active || root.alert) ? Color.popups.background : root.textColor
         font.family: Style.font.family
         font.pixelSize: Style.font.iconSmall
       }
