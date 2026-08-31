@@ -31,6 +31,7 @@ import Quickshell.Services.Mpris
 import Quickshell.Services.UPower
 import qs.Commons
 import qs.Ui
+import qs.Ui as Ui
 
 import "components"
 
@@ -337,6 +338,19 @@ Panel {
 
   // A suggestion leaves the inbox either way: `accept` hands it to a
   // background mission in the jarvis repo, `reject` just journals it.
+  // The written exchange for shared offices: one line to
+  // `omarchy-jarvis ask --quiet` — same brain, same banner and bubble,
+  // no speakers. Optimistically paint the ask; the 3s poll brings the
+  // state ("Réfléchit") and then the reply into the banner above.
+  function sendJarvisText(text) {
+    var t = text.trim()
+    if (t.length === 0) return
+    jarvisLastAsk = t
+    jarvisLastReply = ""
+    Quickshell.execDetached(["omarchy-jarvis", "ask", "--quiet", t])
+    recheck.restart()
+  }
+
   function decideSuggestion(n, verdict) {
     jarvisSuggestionList = jarvisSuggestionList.filter(function(s) { return s.n !== n })
     Quickshell.execDetached(["omarchy-jarvis", "suggestion", String(n), verdict])
@@ -1333,6 +1347,23 @@ Panel {
                   wrapMode: Text.WordWrap
                   maximumLineCount: 3
                   elide: Text.ElideRight
+                }
+
+                // Write to him when speaking is not an option (shared
+                // office): Enter sends the line silently (`ask --quiet`).
+                // The panel is WlrKeyboardFocus.OnDemand while open, so a
+                // click in the field routes the keyboard here.
+                Ui.TextField {
+                  id: jarvisWriteField
+                  Layout.fillWidth: true
+                  Layout.topMargin: Style.space(4)
+                  placeholderText: "Écris à Jarvis…"
+                  foreground: Color.popups.text
+                  font.pixelSize: Style.font.bodySmall
+                  onAccepted: {
+                    root.sendJarvisText(text)
+                    clear()
+                  }
                 }
               }
             }
