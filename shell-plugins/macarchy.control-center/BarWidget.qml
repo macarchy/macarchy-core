@@ -510,8 +510,19 @@ Panel {
     repeat: true
     // Not while the page is being scrolled: a refresh can relayout the
     // column (a new last reply, a card gone) and yank the content.
-    running: root.opened && root.page === "jarvis" && !jarvisFlick.moving
+    running: root.opened && root.page === "jarvis" && !jarvisFlick.moving && !root.jarvisScrolling
     onTriggered: jarvisProc.running = true
+  }
+
+  // Wheel-driven scrolling sets contentY directly, so Flickable.moving
+  // never sees it; this flag covers that path for the poll above.
+  property bool jarvisScrolling: false
+
+  Timer {
+    id: jarvisScrollIdle
+    interval: 500
+    repeat: false
+    onTriggered: root.jarvisScrolling = false
   }
 
   // ----------------------------------------------------- backlights
@@ -1202,6 +1213,24 @@ Panel {
           flickableDirection: Flickable.VerticalFlick
           interactive: contentHeight > height
           ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+          // Hyprland scales touchpad scrolling by 0.4 (input:touchpad:
+          // scroll_factor) and Flickable applies pixelDelta 1:1, so a long
+          // swipe moved the page a little. Drive contentY here instead, at
+          // about finger speed on the touchpad and a sane step on a wheel.
+          WheelHandler {
+            target: null
+            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+            onWheel: function(event) {
+              var dy = event.pixelDelta.y !== 0
+                ? event.pixelDelta.y * 2.5
+                : event.angleDelta.y / 120 * Style.space(80)
+              var maxY = Math.max(0, jarvisFlick.contentHeight - jarvisFlick.height)
+              jarvisFlick.contentY = Math.max(0, Math.min(maxY, jarvisFlick.contentY - dy))
+              root.jarvisScrolling = true
+              jarvisScrollIdle.restart()
+            }
+          }
 
           ColumnLayout {
             id: jarvisPage
