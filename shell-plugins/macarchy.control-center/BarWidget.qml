@@ -21,6 +21,7 @@
 
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
@@ -493,7 +494,11 @@ Panel {
         root.jarvisFailures = num("failures")
         root.jarvisLessons = num("lessons")
         root.jarvisSuggestions = num("suggestions")
-        root.jarvisSuggestionList = suggestions
+        // A `var` assignment always signals, and the Repeater would then
+        // rebuild every card on each poll — only swap when the inbox
+        // actually changed.
+        if (JSON.stringify(suggestions) !== JSON.stringify(root.jarvisSuggestionList))
+          root.jarvisSuggestionList = suggestions
       }
     }
   }
@@ -503,7 +508,9 @@ Panel {
   Timer {
     interval: 3000
     repeat: true
-    running: root.opened && root.page === "jarvis"
+    // Not while the page is being scrolled: a refresh can relayout the
+    // column (a new last reply, a card gone) and yank the content.
+    running: root.opened && root.page === "jarvis" && !jarvisFlick.moving
     onTriggered: jarvisProc.running = true
   }
 
@@ -1188,9 +1195,13 @@ Panel {
           id: jarvisFlick
           visible: root.page === "jarvis"
           anchors.fill: parent
+          contentWidth: width
           contentHeight: jarvisPage.implicitHeight
           clip: true
           boundsBehavior: Flickable.StopAtBounds
+          flickableDirection: Flickable.VerticalFlick
+          interactive: contentHeight > height
+          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
           ColumnLayout {
             id: jarvisPage
