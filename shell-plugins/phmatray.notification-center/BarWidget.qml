@@ -330,6 +330,23 @@ Panel {
             interactive: contentHeight > height
             ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
+            // Hyprland scales touchpad scrolling by 0.4 (input:touchpad:
+            // scroll_factor) and Flickable applies pixelDelta 1:1, so a long
+            // swipe moved the list a little. Drive contentY here instead, at
+            // about finger speed on the touchpad and a sane step on a wheel
+            // (same handler as the control center's Jarvis page).
+            WheelHandler {
+              target: null
+              acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+              onWheel: function(event) {
+                var dy = event.pixelDelta.y !== 0
+                  ? event.pixelDelta.y * 2.5
+                  : event.angleDelta.y / 120 * Style.space(80)
+                var maxY = Math.max(0, panelFlick.contentHeight - panelFlick.height)
+                panelFlick.contentY = Math.max(0, Math.min(maxY, panelFlick.contentY - dy))
+              }
+            }
+
             Column {
               id: listColumn
               width: panelFlick.width
