@@ -87,6 +87,65 @@ Panel {
   property int jarvisSuggestions: 0
   readonly property var jarvisTones: ["majordome", "complice", "laconique"]
 
+  // Live status, from `omarchy-jarvis status` (key=value lines): what he
+  // is doing, what his brain last said about itself, the last exchange,
+  // and the automations' clock. Polled every few seconds while the Jarvis
+  // page is showing.
+  property string jarvisState: "idle"
+  property string jarvisBrain: "ok"          // ok | quota <epoch> | blocked | down
+  property bool jarvisQuiet: false
+  property bool jarvisRondes: true
+  property bool jarvisReves: true
+  property string jarvisSilence: "23-7"      // "HH-HH" | "non"
+  property int jarvisLastHeartbeat: 0
+  property int jarvisNextHeartbeat: 0
+  property string jarvisLastAsk: ""
+  property string jarvisLastReply: ""
+  // [{ n, date, text }] — the dream's proposals awaiting a decision.
+  property var jarvisSuggestionList: []
+
+  readonly property bool jarvisBrainOk: jarvisBrain === "ok"
+
+  function jarvisClock(epoch) {
+    var d = new Date(epoch * 1000)
+    return d.getHours() + "h" + String(d.getMinutes()).padStart(2, "0")
+  }
+
+  function jarvisStateText() {
+    switch (jarvisState) {
+    case "listening": return "À l'écoute"
+    case "transcribing": return "Transcrit"
+    case "thinking": return "Réfléchit"
+    case "speaking": return "Parle"
+    case "followup": return "Attend une suite"
+    case "sleeping": return "Rêve"
+    default: return "Au repos"
+    }
+  }
+
+  function jarvisBrainText() {
+    if (jarvisBrain.indexOf("quota ") === 0)
+      return "Quota atteint · retour " + jarvisClock(parseInt(jarvisBrain.slice(6), 10))
+    if (jarvisBrain === "blocked") return "Ronde bloquée (approbation)"
+    if (jarvisBrain === "down") return "Cerveau injoignable"
+    return "Cerveau OK"
+  }
+
+  function jarvisSilenceText() {
+    var m = /^(\d+)-(\d+)$/.exec(jarvisSilence)
+    return m ? m[1] + "h–" + m[2] + "h" : "23h–7h"
+  }
+
+  // The rounds line: why they are not happening, or when the next one is.
+  function jarvisRoundsText() {
+    if (!jarvisRondes) return "Désactivées"
+    if (jarvisBrain.indexOf("quota ") === 0) return "Suspendues jusqu'à " + jarvisClock(parseInt(jarvisBrain.slice(6), 10)) + " (quota)"
+    if (jarvisQuiet) return "En pause (silence " + jarvisSilenceText() + ")"
+    var last = jarvisLastHeartbeat > 0 ? "Dernière " + jarvisClock(jarvisLastHeartbeat) : "Aucune encore"
+    var mins = Math.max(0, Math.round((jarvisNextHeartbeat - Date.now() / 1000) / 60))
+    return last + " · prochaine dans ~" + mins + " min"
+  }
+
   // "main" | "jarvis" — which page the sidebar shows.
   property string page: "main"
 
@@ -249,6 +308,40 @@ Panel {
     Quickshell.execDetached(["zed", jarvisMemoryDir + file])
   }
 
+  // The automations live in SOUL.md's « Réglages » like the tone does, but
+  // they are read live by the FSM on every tick — no reset needed. An older
+  // soul without the line gets it appended after `langue`.
+  function setJarvisSetting(key, value) {
+    Quickshell.execDetached(["bash", "-c",
+      'grep -q "^- $1:" "$3" && sed -i "s/^- $1: .*/- $1: $2/" "$3" || sed -i "/^- langue:/a - $1: $2" "$3"', "--",
+      key, value, soulPath])
+    recheck.restart()
+  }
+
+  function toggleJarvisRondes() {
+    jarvisRondes = !jarvisRondes
+    setJarvisSetting("rondes", jarvisRondes ? "oui" : "non")
+  }
+
+  function toggleJarvisReves() {
+    jarvisReves = !jarvisReves
+    setJarvisSetting("reves", jarvisReves ? "oui" : "non")
+  }
+
+  function toggleJarvisSilence() {
+    var on = jarvisSilence !== "non"
+    jarvisSilence = on ? "non" : "23-7"
+    setJarvisSetting("silence", jarvisSilence)
+  }
+
+  // A suggestion leaves the inbox either way: `accept` hands it to a
+  // background mission in the jarvis repo, `reject` just journals it.
+  function decideSuggestion(n, verdict) {
+    jarvisSuggestionList = jarvisSuggestionList.filter(function(s) { return s.n !== n })
+    Quickshell.execDetached(["omarchy-jarvis", "suggestion", String(n), verdict])
+    slowRecheck.restart()
+  }
+
   function jarvisDream() {
     Quickshell.execDetached(["omarchy-jarvis", "dream"])
     root.close()
@@ -356,13 +449,12 @@ Panel {
       // match — a plain pattern makes pgrep find itself and the toggle
       // reads "on" forever.
       'pgrep -f "jarvis-wake[.]py" >/dev/null && echo on || echo off\n' +
-      // wc -l always prints exactly one line, unlike `grep -c || echo 0`
-      // which double-prints on a zero-match file and shifts every line
-      // after it.
-      'grep "^- \\[" "$2/FAILURES.md" 2>/dev/null | wc -l\n' +
-      'grep "^- " "$2/LEARNED.md" 2>/dev/null | wc -l\n' +
-      'grep "^- \\[" "$2/SUGGESTIONS.md" 2>/dev/null | wc -l', "--",
-      root.soulPath, root.jarvisMemoryDir]
+      // Then the FSM's own report (key=value lines, counts included) and,
+      // past a marker, the suggestions as tab-separated `n date text`.
+      'omarchy-jarvis status 2>/dev/null\n' +
+      'echo ---\n' +
+      'omarchy-jarvis suggestions 2>/dev/null', "--",
+      root.soulPath]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -375,14 +467,44 @@ Panel {
         var lang = (lines[4] || "").trim()
         root.jarvisLang = (lang === "fr" || lang === "en" || lang === "auto") ? lang : "fr"
         root.jarvisWake = (lines[5] || "").trim() === "on"
-        var fails = parseInt((lines[6] || "").trim(), 10)
-        var lessons = parseInt((lines[7] || "").trim(), 10)
-        var sugg = parseInt((lines[8] || "").trim(), 10)
-        root.jarvisFailures = isFinite(fails) ? fails : 0
-        root.jarvisLessons = isFinite(lessons) ? lessons : 0
-        root.jarvisSuggestions = isFinite(sugg) ? sugg : 0
+
+        var kv = {}
+        var suggestions = []
+        var i = 6
+        for (; i < lines.length && lines[i] !== "---"; i++) {
+          var eq = lines[i].indexOf("=")
+          if (eq > 0) kv[lines[i].slice(0, eq)] = lines[i].slice(eq + 1)
+        }
+        for (i++; i < lines.length; i++) {
+          var parts = lines[i].split("\t")
+          if (parts.length >= 3) suggestions.push({ n: parseInt(parts[0], 10), date: parts[1], text: parts.slice(2).join("\t") })
+        }
+        function num(k) { var v = parseInt(kv[k] || "", 10); return isFinite(v) ? v : 0 }
+        root.jarvisState = kv.state || "idle"
+        root.jarvisBrain = kv.brain || "ok"
+        root.jarvisQuiet = kv.quiet === "oui"
+        root.jarvisRondes = kv.rondes !== "non"
+        root.jarvisReves = kv.reves !== "non"
+        root.jarvisSilence = kv.silence || "23-7"
+        root.jarvisLastHeartbeat = num("last_heartbeat")
+        root.jarvisNextHeartbeat = num("next_heartbeat")
+        root.jarvisLastAsk = kv.last_ask || ""
+        root.jarvisLastReply = kv.last_reply || ""
+        root.jarvisFailures = num("failures")
+        root.jarvisLessons = num("lessons")
+        root.jarvisSuggestions = num("suggestions")
+        root.jarvisSuggestionList = suggestions
       }
     }
+  }
+
+  // The Jarvis page is live: his state changes by the second when he is
+  // spoken to, and a round or a quota notice can land while it is open.
+  Timer {
+    interval: 3000
+    repeat: true
+    running: root.opened && root.page === "jarvis"
+    onTriggered: jarvisProc.running = true
   }
 
   // ----------------------------------------------------- backlights
@@ -919,8 +1041,12 @@ Panel {
             Layout.fillWidth: true
             glyph: "󰚩"
             label: "Jarvis"
-            stateText: root.jarvisTone.charAt(0).toUpperCase() + root.jarvisTone.slice(1)
-              + (root.jarvisLessons > 0 ? " · " + root.jarvisLessons + " leçon" + (root.jarvisLessons > 1 ? "s" : "") : "")
+            // A brain in trouble (quota, stall) takes over the state line
+            // and the badge — that is the one thing worth seeing from here.
+            stateText: !root.jarvisBrainOk ? root.jarvisBrainText()
+              : root.jarvisTone.charAt(0).toUpperCase() + root.jarvisTone.slice(1)
+                + (root.jarvisLessons > 0 ? " · " + root.jarvisLessons + " leçon" + (root.jarvisLessons > 1 ? "s" : "") : "")
+            alert: !root.jarvisBrainOk
             active: root.jarvisShown
             onToggled: root.toggleJarvis()
             onOpened: root.page = "jarvis"
@@ -1056,211 +1182,395 @@ Panel {
 
         // ------------------------------------------------ the Jarvis page
 
-        ColumnLayout {
+        // Taller than the pane on a busy day (status, automations, memory,
+        // the suggestion inbox): it scrolls.
+        Flickable {
+          id: jarvisFlick
           visible: root.page === "jarvis"
-          anchors.left: parent.left
-          anchors.right: parent.right
-          anchors.top: parent.top
-          spacing: Style.space(10)
+          anchors.fill: parent
+          contentHeight: jarvisPage.implicitHeight
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
 
-          RowLayout {
-            Layout.fillWidth: true
-            spacing: Style.space(8)
+          ColumnLayout {
+            id: jarvisPage
+            width: parent.width
+            spacing: Style.space(10)
 
-            Button {
-              text: "‹"
-              fontSize: Style.font.title
-              foreground: Color.popups.text
-              onClicked: root.page = "main"
-            }
+            RowLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(8)
 
-            Text {
-              text: "Jarvis"
-              color: Color.popups.text
-              font.family: Style.font.family
-              font.pixelSize: Style.font.title
-              font.bold: true
-            }
-
-            Item { Layout.fillWidth: true }
-          }
-
-          PanelSeparator {
-            Layout.fillWidth: true
-            foreground: Color.popups.text
-          }
-
-          ConnectRow {
-            Layout.fillWidth: true
-            glyph: "󰈺"
-            label: "Mascotte"
-            stateText: root.jarvisShown ? "Visible" : "Cachée"
-            active: root.jarvisShown
-            onToggled: root.toggleJarvis()
-            onOpened: root.toggleJarvis()
-          }
-
-          PanelSectionHeader {
-            text: "Âme"
-            foreground: Color.popups.text
-          }
-
-          RowLayout {
-            Layout.fillWidth: true
-            spacing: Style.space(6)
-
-            Repeater {
-              model: root.jarvisTones
-
-              delegate: Button {
-                required property string modelData
-                Layout.fillWidth: true
-                text: modelData.charAt(0).toUpperCase() + modelData.slice(1)
-                fontSize: Style.font.caption
+              Button {
+                text: "‹"
+                fontSize: Style.font.title
                 foreground: Color.popups.text
-                // `active` paints the selected fill but keeps the label in
-                // the foreground color — `selected` recolors the text to
-                // the accent, accent-on-accent, unreadable on this glass.
-                active: root.jarvisTone === modelData
-                onClicked: root.setJarvisTone(modelData)
+                onClicked: root.page = "main"
+              }
+
+              Text {
+                text: "Jarvis"
+                color: Color.popups.text
+                font.family: Style.font.family
+                font.pixelSize: Style.font.title
+                font.bold: true
+              }
+
+              Item { Layout.fillWidth: true }
+            }
+
+            PanelSeparator {
+              Layout.fillWidth: true
+              foreground: Color.popups.text
+            }
+
+            // Live status: what he is doing, how his brain is, the last
+            // exchange. A brain in trouble turns the dot and its line urgent.
+            Rectangle {
+              Layout.fillWidth: true
+              radius: Math.min(Style.cornerRadius, Style.space(10))
+              color: Style.normalFill
+              implicitHeight: statusCol.implicitHeight + Style.space(20)
+
+              ColumnLayout {
+                id: statusCol
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: Style.space(10)
+                spacing: Style.space(4)
+
+                RowLayout {
+                  Layout.fillWidth: true
+                  spacing: Style.space(8)
+
+                  Rectangle {
+                    Layout.preferredWidth: Style.space(8)
+                    Layout.preferredHeight: Style.space(8)
+                    radius: width / 2
+                    color: root.jarvisBrainOk ? Color.accent : Color.urgent
+
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                  }
+
+                  Text {
+                    text: root.jarvisStateText()
+                    color: Color.popups.text
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.bodySmall
+                    font.bold: true
+                  }
+
+                  Item { Layout.fillWidth: true }
+
+                  Text {
+                    text: root.jarvisBrainText()
+                    color: root.jarvisBrainOk ? root.dimColor : Color.urgent
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                  }
+                }
+
+                Text {
+                  Layout.fillWidth: true
+                  visible: root.jarvisLastAsk.length > 0
+                  text: "« " + root.jarvisLastAsk + " »"
+                  color: root.dimColor
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                  wrapMode: Text.WordWrap
+                  maximumLineCount: 2
+                  elide: Text.ElideRight
+                }
+
+                Text {
+                  Layout.fillWidth: true
+                  visible: root.jarvisLastReply.length > 0
+                  text: "→ " + root.jarvisLastReply
+                  color: Color.popups.text
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                  wrapMode: Text.WordWrap
+                  maximumLineCount: 3
+                  elide: Text.ElideRight
+                }
               }
             }
-          }
 
-          Toggle {
-            Layout.fillWidth: true
-            label: "Humour"
-            checked: root.jarvisHumor
-            foreground: Color.popups.text
-            onClicked: root.toggleJarvisHumor()
-          }
+            ConnectRow {
+              Layout.fillWidth: true
+              glyph: "󰈺"
+              label: "Mascotte"
+              stateText: root.jarvisShown ? "Visible" : "Cachée"
+              active: root.jarvisShown
+              onToggled: root.toggleJarvis()
+              onOpened: root.toggleJarvis()
+            }
 
-          RowLayout {
-            Layout.fillWidth: true
-            spacing: Style.space(6)
+            PanelSectionHeader {
+              text: "Âme"
+              foreground: Color.popups.text
+            }
+
+            RowLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(6)
+
+              Repeater {
+                model: root.jarvisTones
+
+                delegate: Button {
+                  required property string modelData
+                  Layout.fillWidth: true
+                  text: modelData.charAt(0).toUpperCase() + modelData.slice(1)
+                  fontSize: Style.font.caption
+                  foreground: Color.popups.text
+                  // `active` paints the selected fill but keeps the label in
+                  // the foreground color — `selected` recolors the text to
+                  // the accent, accent-on-accent, unreadable on this glass.
+                  active: root.jarvisTone === modelData
+                  onClicked: root.setJarvisTone(modelData)
+                }
+              }
+            }
+
+            Toggle {
+              Layout.fillWidth: true
+              label: "Humour"
+              checked: root.jarvisHumor
+              foreground: Color.popups.text
+              onClicked: root.toggleJarvisHumor()
+            }
+
+            RowLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(6)
+
+              Text {
+                text: "Langue"
+                color: root.dimColor
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+              }
+
+              Repeater {
+                model: root.jarvisLangs
+
+                delegate: Button {
+                  required property var modelData
+                  Layout.fillWidth: true
+                  text: modelData[1]
+                  fontSize: Style.font.caption
+                  foreground: Color.popups.text
+                  // Same readable-label fix as the tone pills above.
+                  active: root.jarvisLang === modelData[0]
+                  onClicked: root.setJarvisLang(modelData[0])
+                }
+              }
+            }
+
+            Toggle {
+              Layout.fillWidth: true
+              label: "« Hey Jarvis » (wake word)"
+              checked: root.jarvisWake
+              foreground: Color.popups.text
+              onClicked: root.toggleJarvisWake()
+            }
+
+            Toggle {
+              Layout.fillWidth: true
+              label: "Vouvoiement (« Monsieur »)"
+              checked: root.jarvisVous
+              foreground: Color.popups.text
+              onClicked: root.toggleJarvisVous()
+            }
+
+            Button {
+              Layout.fillWidth: true
+              text: "Éditer l'âme (SOUL.md)"
+              fontSize: Style.font.caption
+              foreground: Color.popups.text
+              onClicked: root.editSoul()
+            }
+
+            PanelSectionHeader {
+              text: "Automatismes"
+              foreground: Color.popups.text
+            }
+
+            Toggle {
+              Layout.fillWidth: true
+              label: "Rondes"
+              description: root.jarvisRoundsText()
+              checked: root.jarvisRondes
+              foreground: Color.popups.text
+              onClicked: root.toggleJarvisRondes()
+            }
+
+            Toggle {
+              Layout.fillWidth: true
+              label: "Rêves automatiques"
+              description: root.jarvisReves ? "Consolide sa mémoire quand il s'ennuie" : "Seulement sur « Rêver »"
+              checked: root.jarvisReves
+              foreground: Color.popups.text
+              onClicked: root.toggleJarvisReves()
+            }
+
+            Toggle {
+              Layout.fillWidth: true
+              label: "Silence " + root.jarvisSilenceText()
+              description: root.jarvisQuiet ? "En cours — il ne parle que si on lui parle" : "Ni rondes, ni rêves, ni parole spontanée la nuit"
+              checked: root.jarvisSilence !== "non"
+              foreground: Color.popups.text
+              onClicked: root.toggleJarvisSilence()
+            }
+
+            PanelSectionHeader {
+              text: "Mémoire"
+              foreground: Color.popups.text
+            }
 
             Text {
-              text: "Langue"
+              Layout.fillWidth: true
+              text: root.jarvisFailures + " échec" + (root.jarvisFailures > 1 ? "s" : "")
+                + " en attente · " + root.jarvisLessons + " leçon" + (root.jarvisLessons > 1 ? "s" : "") + " apprise" + (root.jarvisLessons > 1 ? "s" : "")
+                + (root.jarvisSuggestions > 0
+                    ? " · " + root.jarvisSuggestions + " suggestion" + (root.jarvisSuggestions > 1 ? "s" : "")
+                    : "")
               color: root.dimColor
               font.family: Style.font.family
-              font.pixelSize: Style.font.caption
+              font.pixelSize: Style.font.bodySmall
+              wrapMode: Text.WordWrap
+            }
+
+            RowLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(6)
+
+              Button {
+                Layout.fillWidth: true
+                text: "Rêver"
+                fontSize: Style.font.caption
+                foreground: Color.popups.text
+                enabled: root.jarvisFailures > 0
+                tooltipText: "Consolider les échecs en leçons"
+                onClicked: root.jarvisDream()
+              }
+
+              Button {
+                Layout.fillWidth: true
+                text: "Nouvelle conversation"
+                fontSize: Style.font.caption
+                foreground: Color.popups.text
+                onClicked: root.jarvisReset()
+              }
+            }
+
+            RowLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(6)
+
+              Button {
+                Layout.fillWidth: true
+                text: "Journal des échecs"
+                fontSize: Style.font.caption
+                foreground: Color.popups.text
+                onClicked: root.editMemory("FAILURES.md")
+              }
+
+              Button {
+                Layout.fillWidth: true
+                text: "Leçons"
+                fontSize: Style.font.caption
+                foreground: Color.popups.text
+                onClicked: root.editMemory("LEARNED.md")
+              }
+
+              Button {
+                Layout.fillWidth: true
+                text: "Boîte noire"
+                fontSize: Style.font.caption
+                foreground: Color.popups.text
+                tooltipText: "Chaque commande exécutée aujourd'hui"
+                // Local date, not toISOString (UTC would open yesterday's
+                // trace until 2 a.m. in Brussels).
+                onClicked: {
+                  var d = new Date()
+                  var day = d.getFullYear() + "-"
+                    + String(d.getMonth() + 1).padStart(2, "0") + "-"
+                    + String(d.getDate()).padStart(2, "0")
+                  root.editMemory("trace/" + day + ".log")
+                }
+              }
+            }
+
+            // The inbox: what his dreams proposed and nobody has decided on.
+            // « Confier » hands it to a background mission; « Rejeter »
+            // drops it — both leave a journal line, nothing vanishes.
+            PanelSectionHeader {
+              visible: root.jarvisSuggestionList.length > 0
+              text: "Suggestions"
+              foreground: Color.popups.text
             }
 
             Repeater {
-              model: root.jarvisLangs
+              model: root.jarvisSuggestionList
 
-              delegate: Button {
+              delegate: Rectangle {
                 required property var modelData
                 Layout.fillWidth: true
-                text: modelData[1]
-                fontSize: Style.font.caption
-                foreground: Color.popups.text
-                // Same readable-label fix as the tone pills above.
-                active: root.jarvisLang === modelData[0]
-                onClicked: root.setJarvisLang(modelData[0])
-              }
-            }
-          }
+                radius: Math.min(Style.cornerRadius, Style.space(10))
+                color: Style.normalFill
+                implicitHeight: suggestionCol.implicitHeight + Style.space(20)
 
-          Toggle {
-            Layout.fillWidth: true
-            label: "« Hey Jarvis » (wake word)"
-            checked: root.jarvisWake
-            foreground: Color.popups.text
-            onClicked: root.toggleJarvisWake()
-          }
+                ColumnLayout {
+                  id: suggestionCol
+                  anchors.left: parent.left
+                  anchors.right: parent.right
+                  anchors.top: parent.top
+                  anchors.margins: Style.space(10)
+                  spacing: Style.space(6)
 
-          Toggle {
-            Layout.fillWidth: true
-            label: "Vouvoiement (« Monsieur »)"
-            checked: root.jarvisVous
-            foreground: Color.popups.text
-            onClicked: root.toggleJarvisVous()
-          }
+                  Text {
+                    text: modelData.date
+                    color: root.dimColor
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                  }
 
-          Button {
-            Layout.fillWidth: true
-            text: "Éditer l'âme (SOUL.md)"
-            fontSize: Style.font.caption
-            foreground: Color.popups.text
-            onClicked: root.editSoul()
-          }
+                  Text {
+                    Layout.fillWidth: true
+                    text: modelData.text
+                    color: Color.popups.text
+                    font.family: Style.font.family
+                    font.pixelSize: Style.font.caption
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 5
+                    elide: Text.ElideRight
+                  }
 
-          PanelSectionHeader {
-            text: "Mémoire"
-            foreground: Color.popups.text
-          }
+                  RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Style.space(6)
 
-          Text {
-            Layout.fillWidth: true
-            text: root.jarvisFailures + " échec" + (root.jarvisFailures > 1 ? "s" : "")
-              + " en attente · " + root.jarvisLessons + " leçon" + (root.jarvisLessons > 1 ? "s" : "") + " apprise" + (root.jarvisLessons > 1 ? "s" : "")
-              + (root.jarvisSuggestions > 0
-                  ? " · " + root.jarvisSuggestions + " suggestion" + (root.jarvisSuggestions > 1 ? "s" : "")
-                  : "")
-            color: root.dimColor
-            font.family: Style.font.family
-            font.pixelSize: Style.font.bodySmall
-            wrapMode: Text.WordWrap
-          }
+                    Button {
+                      Layout.fillWidth: true
+                      text: "Confier"
+                      fontSize: Style.font.caption
+                      foreground: Color.popups.text
+                      tooltipText: "Lancer une mission de fond qui l'applique"
+                      onClicked: root.decideSuggestion(modelData.n, "accept")
+                    }
 
-          RowLayout {
-            Layout.fillWidth: true
-            spacing: Style.space(6)
-
-            Button {
-              Layout.fillWidth: true
-              text: "Rêver"
-              fontSize: Style.font.caption
-              foreground: Color.popups.text
-              enabled: root.jarvisFailures > 0
-              tooltipText: "Consolider les échecs en leçons"
-              onClicked: root.jarvisDream()
-            }
-
-            Button {
-              Layout.fillWidth: true
-              text: "Nouvelle conversation"
-              fontSize: Style.font.caption
-              foreground: Color.popups.text
-              onClicked: root.jarvisReset()
-            }
-          }
-
-          RowLayout {
-            Layout.fillWidth: true
-            spacing: Style.space(6)
-
-            Button {
-              Layout.fillWidth: true
-              text: "Journal des échecs"
-              fontSize: Style.font.caption
-              foreground: Color.popups.text
-              onClicked: root.editMemory("FAILURES.md")
-            }
-
-            Button {
-              Layout.fillWidth: true
-              text: "Leçons"
-              fontSize: Style.font.caption
-              foreground: Color.popups.text
-              onClicked: root.editMemory("LEARNED.md")
-            }
-
-            Button {
-              Layout.fillWidth: true
-              text: "Boîte noire"
-              fontSize: Style.font.caption
-              foreground: Color.popups.text
-              tooltipText: "Chaque commande exécutée aujourd'hui"
-              // Local date, not toISOString (UTC would open yesterday's
-              // trace until 2 a.m. in Brussels).
-              onClicked: {
-                var d = new Date()
-                var day = d.getFullYear() + "-"
-                  + String(d.getMonth() + 1).padStart(2, "0") + "-"
-                  + String(d.getDate()).padStart(2, "0")
-                root.editMemory("trace/" + day + ".log")
+                    Button {
+                      Layout.fillWidth: true
+                      text: "Rejeter"
+                      fontSize: Style.font.caption
+                      foreground: Color.popups.text
+                      onClicked: root.decideSuggestion(modelData.n, "reject")
+                    }
+                  }
+                }
               }
             }
           }
