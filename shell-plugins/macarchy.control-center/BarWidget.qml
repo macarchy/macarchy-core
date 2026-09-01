@@ -89,6 +89,30 @@ Panel {
   property int jarvisSuggestions: 0
   readonly property var jarvisTones: ["majordome", "complice", "laconique"]
 
+  // The fish's look: five soul settings, one per part (sprites/parts.py).
+  // Writes go through sed then `omarchy-jarvis look`, chained in one
+  // shell so the regeneration always reads the new value; the fish on
+  // the desktop is the preview.
+  property string jarvisCorps: "B1"
+  property string jarvisOeil: "E1"
+  property string jarvisCriniere: "M1"
+  property string jarvisQueue: "T1"
+  property string jarvisCouleur: "or"
+  readonly property var jarvisLookAxes: [
+    ["corps", "Corps", [["B1", "Babel"], ["B2", "Rond"], ["B3", "Élancé"], ["B4", "Anguille"]]],
+    ["oeil", "Œil", [["E1", "Grand"], ["E2", "Amande"], ["E3", "Rond"], ["E4", "Anneau"]]],
+    ["criniere", "Crinière", [["M1", "Éventail"], ["M2", "Voile"], ["M3", "Mohawk"], ["M4", "Antennes"]]],
+    ["queue", "Queue", [["T1", "Fourche"], ["T2", "Éventail"], ["T3", "Croissant"], ["T4", "Ruban"]]]
+  ]
+  readonly property var jarvisCouleurs: [
+    ["or", "#F2C94C"], ["corail", "#F08A5D"], ["lagon", "#4CC9C0"], ["lavande", "#A78BFA"],
+    ["menthe", "#7ED957"], ["perle", "#ECE7DC"], ["braise", "#FF6B6B"], ["encre", "#5C8DFF"]
+  ]
+  function jarvisLookValue(key) {
+    return key === "corps" ? jarvisCorps : key === "oeil" ? jarvisOeil
+      : key === "criniere" ? jarvisCriniere : key === "queue" ? jarvisQueue : jarvisCouleur
+  }
+
   // Live status, from `omarchy-jarvis status` (key=value lines): what he
   // is doing, what his brain last said about itself, the last exchange,
   // and the automations' clock. Polled every few seconds while the Jarvis
@@ -351,6 +375,22 @@ Panel {
     recheck.restart()
   }
 
+  function setJarvisLook(key, value) {
+    if (key === "corps") jarvisCorps = value
+    else if (key === "oeil") jarvisOeil = value
+    else if (key === "criniere") jarvisCriniere = value
+    else if (key === "queue") jarvisQueue = value
+    else jarvisCouleur = value
+    Quickshell.execDetached(["bash", "-c",
+      'grep -q "^- $1:" "$3" && sed -i "s/^- $1: .*/- $1: $2/" "$3" || sed -i "/^- langue:/a - $1: $2" "$3"; omarchy-jarvis look', "--",
+      key, value, soulPath])
+  }
+
+  function randomJarvisLook() {
+    Quickshell.execDetached(["omarchy-jarvis", "look", "random"])
+    recheck.restart()
+  }
+
   function decideSuggestion(n, verdict) {
     jarvisSuggestionList = jarvisSuggestionList.filter(function(s) { return s.n !== n })
     Quickshell.execDetached(["omarchy-jarvis", "suggestion", String(n), verdict])
@@ -501,6 +541,11 @@ Panel {
         root.jarvisRondes = kv.rondes !== "non"
         root.jarvisReves = kv.reves !== "non"
         root.jarvisSilence = kv.silence || "23-7"
+        root.jarvisCorps = kv.corps || "B1"
+        root.jarvisOeil = kv.oeil || "E1"
+        root.jarvisCriniere = kv.criniere || "M1"
+        root.jarvisQueue = kv.queue || "T1"
+        root.jarvisCouleur = kv.couleur || "or"
         root.jarvisLastHeartbeat = num("last_heartbeat")
         root.jarvisNextHeartbeat = num("next_heartbeat")
         root.jarvisLastAsk = kv.last_ask || ""
@@ -1462,6 +1507,86 @@ Panel {
               fontSize: Style.font.caption
               foreground: Color.popups.text
               onClicked: root.editSoul()
+            }
+
+            // ------------------------------------------------ appearance
+            PanelSectionHeader {
+              text: "Apparence"
+              foreground: Color.popups.text
+            }
+
+            Repeater {
+              model: root.jarvisLookAxes
+
+              delegate: RowLayout {
+                required property var modelData
+                Layout.fillWidth: true
+                spacing: Style.space(6)
+
+                Text {
+                  Layout.preferredWidth: Style.space(52)
+                  text: modelData[1]
+                  color: root.dimColor
+                  font.family: Style.font.family
+                  font.pixelSize: Style.font.caption
+                }
+
+                Repeater {
+                  model: modelData[2]
+
+                  delegate: Button {
+                    required property var modelData
+                    readonly property string axisKey: parent.modelData ? parent.modelData[0] : ""
+                    Layout.fillWidth: true
+                    text: modelData[1]
+                    fontSize: Style.font.caption
+                    foreground: Color.popups.text
+                    active: root.jarvisLookValue(axisKey) === modelData[0]
+                    onClicked: root.setJarvisLook(axisKey, modelData[0])
+                  }
+                }
+              }
+            }
+
+            RowLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(6)
+
+              Text {
+                Layout.preferredWidth: Style.space(52)
+                text: "Couleur"
+                color: root.dimColor
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+              }
+
+              Repeater {
+                model: root.jarvisCouleurs
+
+                delegate: Rectangle {
+                  required property var modelData
+                  Layout.fillWidth: true
+                  Layout.preferredHeight: Style.space(22)
+                  radius: Style.space(4)
+                  color: modelData[1]
+                  border.width: root.jarvisCouleur === modelData[0] ? 2 : 0
+                  border.color: Color.popups.text
+
+                  MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.setJarvisLook("couleur", parent.modelData[0])
+                  }
+                }
+              }
+            }
+
+            Button {
+              Layout.fillWidth: true
+              text: "Au hasard"
+              fontSize: Style.font.caption
+              foreground: Color.popups.text
+              onClicked: root.randomJarvisLook()
             }
 
             PanelSectionHeader {
