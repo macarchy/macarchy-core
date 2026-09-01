@@ -144,6 +144,21 @@ def build_button(name, btn, state, slots):
             "Stretch": btn.get("stretch", 2),
         })]
 
+    if kind == "jarvis":
+        # The voice assistant's key: its glyph follows the pipeline state
+        # (bin/jarvis pings us with USR1 on every transition).
+        glyphs = {"idle": btn.get("text", "\U000f023a"), "listening": "\U000f036c",
+                  "followup": "\U000f036c", "transcribing": "\U000f051f",
+                  "thinking": "\U000f051f", "speaking": "\U000f057e",
+                  "sleeping": "\U000f04b2"}
+        text = glyphs.get(state.get("jarvis", "idle"), glyphs["idle"])
+        if len(slots) >= len(SLOT_KEYS):
+            log("out of F13-F24 slots; dropping the Jarvis key")
+            return []
+        slots.append(btn.get("run", "omarchy-jarvis press"))
+        key = SLOT_KEYS[len(slots) - 1]
+        return [toml_entry({"Text": toml_str(text), "Action": toml_str(key), "Stretch": stretch})]
+
     if kind == "notification":
         note = state.get("notification") or {}
         text = note.get("text", "")
@@ -558,7 +573,12 @@ def current_state():
         w["id"] for w in (hypr_query("workspaces") or [])
         if isinstance(w.get("id"), int) and w["id"] > 0 and (w.get("windows") or 0) > 0
     } | ({active} if active > 0 else set()))
-    return {"class": cls, "title": title, "workspace": active, "occupied": occupied}
+    try:
+        with open(os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "jarvis", "state")) as f:
+            jarvis = f.read().strip() or "idle"
+    except OSError:
+        jarvis = "idle"
+    return {"class": cls, "title": title, "workspace": active, "occupied": occupied, "jarvis": jarvis}
 
 
 _last_text = None
@@ -676,6 +696,10 @@ def daemon():
             if new_page != page:
                 page, page_since = new_page, time.monotonic()
                 dirty_since = time.monotonic() - DEBOUNCE  # redraw now
+            else:
+                # Not a page tap: Jarvis changed state. apply() only rewrites
+                # when the rendered bar actually differs.
+                dirty_since = dirty_since or time.monotonic()
 
         if notify_proc and notify_proc.stdout in r:
             try:
