@@ -325,6 +325,12 @@ Panel {
     recheck.restart()
   }
 
+  // Ces trois pastilles fixent la langue de la conversation entière : ce que
+  // ses oreilles attendent (whisper est épinglé sur ce réglage) et la voix
+  // qui répond. Jarvis les relit à chaque phrase, donc pas de `reset` ici —
+  // presser « English » au milieu d'un échange change la voix de la réponse
+  // suivante. Sous « Auto » il devine, une fois par réponse ; c'est
+  // précisément ce que ces deux autres pastilles servent à éviter.
   function setJarvisLang(lang) {
     jarvisLang = lang
     Quickshell.execDetached(["bash", "-c",
