@@ -84,6 +84,12 @@ Panel {
   property string jarvisLang: "fr"
   property bool jarvisWake: false
   readonly property var jarvisLangs: [["fr", "Français"], ["en", "English"], ["auto", "Auto"]]
+  // What he does when he is asked to listen with the microphone muted. The
+  // default hands over the keyboard: he cannot hear you, so the honest move
+  // is the other way in — never the sprite and the « J'écoute… » over a node
+  // nothing can pass through, which is what he did all of 2026-09-01.
+  property string jarvisMuteMode: "ecrire"
+  readonly property var jarvisMuteModes: [["ecrire", "Clavier"], ["prevenir", "Prévenir"], ["reactiver", "Réactiver"]]
   property int jarvisFailures: 0
   property int jarvisLessons: 0
   property int jarvisSuggestions: 0
@@ -317,6 +323,13 @@ Panel {
       lang, soulPath])
   }
 
+  // Read live by the pipeline on the next press — no `reset` needed, so it
+  // goes through the generic setter like the automations do.
+  function setJarvisMuteMode(mode) {
+    jarvisMuteMode = mode
+    setJarvisSetting("micro-coupe", mode)
+  }
+
   function toggleJarvisVous() {
     jarvisVous = !jarvisVous
     Quickshell.execDetached(["bash", "-c",
@@ -541,6 +554,7 @@ Panel {
         root.jarvisRondes = kv.rondes !== "non"
         root.jarvisReves = kv.reves !== "non"
         root.jarvisSilence = kv.silence || "23-7"
+        root.jarvisMuteMode = kv.micro_coupe || "ecrire"
         root.jarvisCorps = kv.corps || "B1"
         root.jarvisOeil = kv.oeil || "E1"
         root.jarvisCriniere = kv.criniere || "M1"
@@ -1481,6 +1495,32 @@ Panel {
                   // Same readable-label fix as the tone pills above.
                   active: root.jarvisLang === modelData[0]
                   onClicked: root.setJarvisLang(modelData[0])
+                }
+              }
+            }
+
+            RowLayout {
+              Layout.fillWidth: true
+              spacing: Style.space(6)
+
+              Text {
+                text: "Micro coupé"
+                color: root.dimColor
+                font.family: Style.font.family
+                font.pixelSize: Style.font.caption
+              }
+
+              Repeater {
+                model: root.jarvisMuteModes
+
+                delegate: Button {
+                  required property var modelData
+                  Layout.fillWidth: true
+                  text: modelData[1]
+                  fontSize: Style.font.caption
+                  foreground: Color.popups.text
+                  active: root.jarvisMuteMode === modelData[0]
+                  onClicked: root.setJarvisMuteMode(modelData[0])
                 }
               }
             }
