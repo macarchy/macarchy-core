@@ -151,6 +151,10 @@ Panel {
     case "speaking": return "Parle"
     case "followup": return "Attend une suite"
     case "sleeping": return "Rêve"
+    // Milliseconds long in practice — the panel polls every few seconds and
+    // will almost never catch it — but the label exists so an abort that
+    // does wedge reads as an abort and not as a fish at rest.
+    case "cancelling": return "Annule"
     default: return "Au repos"
     }
   }
@@ -309,10 +313,15 @@ Panel {
       jarvisHumor ? "oui" : "non", soulPath])
   }
 
+  // Switching the ears off inside a follow-up window used to park him there:
+  // the daemon is what closes that window, so killing it left the fish perked
+  // up until the next press — and with it the whole body clock. `settle` is a
+  // no-op from every other state, so it costs nothing to always send it.
   function toggleJarvisWake() {
     jarvisWake = !jarvisWake
     if (jarvisWake) Quickshell.execDetached(["omarchy-jarvis-wake"])
-    else Quickshell.execDetached(["pkill", "-f", "jarvis-wake[.]py"])
+    else Quickshell.execDetached(["bash", "-c",
+      'pkill -f "jarvis-wake[.]py"; omarchy-jarvis settle'])
     recheck.restart()
   }
 
