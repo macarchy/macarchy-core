@@ -76,8 +76,8 @@ run = "omarchy menu"
 
 # The Babel fish: one tap = push-to-talk toggle (same as SUPER+ALT+J).
 [buttons.jarvis]
-text = "󰈺"
-run = "omarchy-jarvis listen"
+type = "jarvis"              # the glyph follows Jarvis's state (listening, thinking…)
+run = "omarchy-jarvis press"
 
 [buttons.workspaces]
 type = "workspaces"
