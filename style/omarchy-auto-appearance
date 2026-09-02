@@ -60,17 +60,22 @@ else
   if ! sun=$(omarchy-sun --json 2>/dev/null) || [[ -z $sun ]]; then
     want=""
   else
-    state=$(jq -r '.state' <<<"$sun")
-    sunrise=$(jq -r '.sunrise // empty' <<<"$sun")
-    sunset=$(jq -r '.sunset // empty' <<<"$sun")
+    state=$(jq -r '.state // empty' <<<"$sun" 2>/dev/null)
+    sunrise=$(jq -r '.sunrise // empty' <<<"$sun" 2>/dev/null)
+    sunset=$(jq -r '.sunset // empty' <<<"$sun" 2>/dev/null)
+    case $state in normal|up|down) ;; *) want="" ;; esac
     case $state in
       up)   want=light ;;
       down) want=dark ;;
-      *)
-        from=$(to_minutes "$sunrise")
-        until_=$(to_minutes "$sunset")
-        (( now >= from && now < until_ )) && want=light || want=dark
-        extra="sunrise=$sunrise sunset=$sunset"
+      normal)
+        if [[ $sunrise =~ ^[0-9]{2}:[0-9]{2}$ && $sunset =~ ^[0-9]{2}:[0-9]{2}$ ]]; then
+          from=$(to_minutes "$sunrise")
+          until_=$(to_minutes "$sunset")
+          (( now >= from && now < until_ )) && want=light || want=dark
+          extra="sunrise=$sunrise sunset=$sunset"
+        else
+          want=""
+        fi
         ;;
     esac
   fi

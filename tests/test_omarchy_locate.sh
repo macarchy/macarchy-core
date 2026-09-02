@@ -58,4 +58,10 @@ reset; rm -f "$JSON"
 check "missing json exits 1" [ "$rc" -eq 1 ]
 check "missing json is not created" [ ! -e "$JSON" ]
 
+reset; export FAKE_CURL='{"status":"success","city":"Nowhere"}'
+err=$("$SCRIPT" 2>&1 >/dev/null); rc=$?
+check "no coordinates exits 1" [ "$rc" -eq 1 ]
+check "no coordinates leaves the file" [ "$(jq -r .latitude "$JSON")" = "48.8566" ]
+check "no coordinates does not apply" [ -z "$(grep 'omarchy-auto-appearance' "$FAKE_LOG")" ]
+
 echo; [[ $fails -eq 0 ]] && echo "all passed" || { echo "$fails failed"; exit 1; }

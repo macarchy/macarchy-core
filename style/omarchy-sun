@@ -19,10 +19,14 @@ import json
 import math
 import os
 import sys
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
-CONFIG_PATH = Path(os.environ.get("HOME", "~")).expanduser() / ".config" / "omarchy" / "dynamic-wallpaper.json"
+_XDG_CONFIG_HOME = os.environ.get("XDG_CONFIG_HOME")
+CONFIG_DIR = Path(_XDG_CONFIG_HOME).expanduser() if _XDG_CONFIG_HOME else (
+    Path(os.environ.get("HOME", "~")).expanduser() / ".config"
+)
+CONFIG_PATH = CONFIG_DIR / "omarchy" / "dynamic-wallpaper.json"
 OBLIQUITY = math.radians(23.4397)
 HORIZON = -0.833  # degrees: refraction plus the sun's radius
 
