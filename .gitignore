@@ -1,0 +1,3 @@
+# Build output from the python daemons (omarchy-dfr, omarchy-als).
+__pycache__/
+*.pyc
