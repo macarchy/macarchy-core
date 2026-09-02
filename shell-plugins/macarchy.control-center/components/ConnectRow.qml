@@ -1,7 +1,10 @@
-// Connectivity status row: radio icon + name + state line, a switch that
-// flips the radio, and a click anywhere else that deep-links to the full
-// panel (network / bluetooth). The switch owns its own click; the row's
-// MouseArea sits underneath it.
+// A row on the Control Center's home: badge + name + state line, an optional
+// switch, and an optional chevron. Clicking the row opens whatever is behind
+// it (a module page, or one of the shell's own panels); the switch owns its
+// own click and sits above the row's MouseArea.
+//
+// A row with no page and a switch toggles on a plain click — nothing on this
+// panel should look pressable and do nothing.
 
 import QtQuick
 import QtQuick.Layouts
@@ -17,6 +20,8 @@ Rectangle {
   property bool active: false
   // Something needs attention behind this row: the badge turns urgent.
   property bool alert: false
+  property bool hasToggle: true
+  property bool hasPage: true
 
   signal toggled()
   signal opened()
@@ -34,7 +39,7 @@ Rectangle {
   MouseArea {
     anchors.fill: parent
     cursorShape: Qt.PointingHandCursor
-    onClicked: root.opened()
+    onClicked: root.hasPage ? root.opened() : (root.hasToggle ? root.toggled() : null)
   }
 
   RowLayout {
@@ -88,10 +93,20 @@ Rectangle {
     }
 
     ToggleSwitch {
+      visible: root.hasToggle
       Layout.alignment: Qt.AlignVCenter
       checked: root.active
       trackHeight: Style.space(16)
       onToggled: root.toggled()
+    }
+
+    Text {
+      visible: root.hasPage
+      Layout.alignment: Qt.AlignVCenter
+      text: "󰅂"
+      color: root.dimColor
+      font.family: Style.font.family
+      font.pixelSize: Style.font.iconSmall
     }
   }
 }
