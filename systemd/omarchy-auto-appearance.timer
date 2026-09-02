@@ -2,11 +2,12 @@
 Description=Check the time of day for the Omarchy appearance switch
 
 [Timer]
-# Every quarter hour on the clock, and shortly after login, so the appearance is already
-# correct by the time the desktop is usable. Persistent catches the boundary
-# being crossed while the machine was asleep.
+# Every five minutes on the clock, like the dynamic wallpaper, so a sunset is
+# followed within five minutes; and shortly after login, so the appearance is
+# already correct by the time the desktop is usable. Persistent catches a
+# boundary crossed while the machine was asleep.
 OnBootSec=1min
-OnCalendar=*:0/15
+OnCalendar=*:0/5
 Persistent=true
 
 [Install]
