@@ -1,0 +1,104 @@
+#!/bin/bash
+# Pick a legible colour for the transparent bar from what is REALLY on screen.
+#
+# Omarchy's own picker (omarchy-bar-text-color) samples the static wallpaper
+# file. On this box the aquarium draws on a layer above that wallpaper, so the
+# picker sees a bright beach while the bar actually sits on deep blue water —
+# and paints black icons on it. This tool samples the bar strip from a live
+# capture instead, decides light-or-dark text by WCAG contrast, and writes the
+# verdict into ~/.config/omarchy/shell.toml, the machine-level override the
+# shell hot-reloads. It writes only when the verdict changes.
+#
+#   omarchy-bar-contrast            sample, decide, write if changed
+#   omarchy-bar-contrast status     print the sample and the verdict, write nothing
+#   omarchy-bar-contrast --sample '#rrggbb'   skip the capture (tests)
+#
+# Both Apple Glass themes use the same label colours, so the candidates are
+# fixed: #f5f5f7 / #ff453a on dark ground, #1d1d1f / #d70015 on light ground.
+set -uo pipefail
+
+CONF="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/shell.toml"
+LIGHT_TEXT="#f5f5f7"; LIGHT_ACTIVE="#ff453a"
+DARK_TEXT="#1d1d1f";  DARK_ACTIVE="#d70015"
+BEGIN="# >>> omarchy-bar-contrast (managed; do not edit)"
+END="# <<< omarchy-bar-contrast"
+
+action=apply
+sample=""
+while (($# > 0)); do
+  case $1 in
+    status) action=status; shift ;;
+    --sample) sample=${2:-}; shift 2 ;;
+    *) echo "usage: omarchy-bar-contrast [status] [--sample '#rrggbb']" >&2; exit 2 ;;
+  esac
+done
+
+luminance() {  # #rrggbb -> relative luminance
+  awk -v hex="$1" 'function ch(s){return strtonum("0x" s)/255}
+    function lin(c){return c<=0.03928 ? c/12.92 : ((c+0.055)/1.055)^2.4}
+    BEGIN{printf "%.6f", 0.2126*lin(ch(substr(hex,2,2)))+0.7152*lin(ch(substr(hex,4,2)))+0.0722*lin(ch(substr(hex,6,2)))}'
+}
+contrast() {
+  awk -v a="$(luminance "$1")" -v b="$(luminance "$2")" 'BEGIN{if(a<b){t=a;a=b;b=t} printf "%.3f", (a+0.05)/(b+0.05)}'
+}
+
+# The bar strip, in logical pixels, from the layer the shell actually maps.
+bar_geometry() {
+  hyprctl layers -j 2>/dev/null | jq -r '[.[] | .levels[] | .[] | select(.namespace == "omarchy-bar")][0] | "\(.x),\(.y) \(.w)x\(.h)"' 2>/dev/null
+}
+
+# After a theme switch the aquarium is restarted by its own hook; sampling
+# before it draws would see the wallpaper — the exact mistake this tool exists
+# to avoid. If the renderer is alive, give its layer a few seconds to appear.
+wait_for_aquarium() {
+  pgrep -f '(^|/)omarchy-aquarium( |$)' >/dev/null || return 0
+  for _ in $(seq 1 25); do
+    hyprctl layers -j 2>/dev/null | grep -q '"namespace": "aquarium"' && { sleep 1; return 0; }
+    sleep 0.2
+  done
+}
+
+if [[ -z $sample ]]; then
+  for tool in grim magick hyprctl jq; do
+    command -v "$tool" >/dev/null || { echo "omarchy-bar-contrast: $tool missing" >&2; exit 1; }
+  done
+  geom=$(bar_geometry)
+  [[ $geom =~ ^-?[0-9]+,-?[0-9]+\ [0-9]+x[0-9]+$ ]] || { echo "omarchy-bar-contrast: no omarchy-bar layer" >&2; exit 1; }
+  wait_for_aquarium
+  shot=$(mktemp --suffix=.png)
+  trap 'rm -f "$shot"' EXIT
+  grim -g "$geom" "$shot" || { echo "omarchy-bar-contrast: grim failed" >&2; exit 1; }
+  sample="#$(magick "$shot" -scale '1x1!' -depth 8 -format '%[hex:u]' info:- 2>/dev/null | tr 'A-F' 'a-f')"
+fi
+[[ $sample =~ ^#[0-9a-f]{6}$ ]] || { echo "omarchy-bar-contrast: bad sample '$sample'" >&2; exit 1; }
+
+light_c=$(contrast "$LIGHT_TEXT" "$sample")
+dark_c=$(contrast "$DARK_TEXT" "$sample")
+if awk -v l="$light_c" -v d="$dark_c" 'BEGIN{exit !(l > d)}'; then
+  verdict=light; text=$LIGHT_TEXT; active=$LIGHT_ACTIVE
+else
+  verdict=dark; text=$DARK_TEXT; active=$DARK_ACTIVE
+fi
+
+block=$(printf '%s\n[bar]\ntext   = "%s"\nactive = "%s"\n%s' "$BEGIN" "$text" "$active" "$END")
+
+if [[ $action == status ]]; then
+  echo "sample=$sample light=$light_c dark=$dark_c verdict=$verdict text=$text"
+  exit 0
+fi
+
+current=""
+[[ -f $CONF ]] && current=$(sed -n "/^$BEGIN\$/,/^$END\$/p" "$CONF")
+[[ $current == "$block" ]] && exit 0   # same verdict: no write, no shell reload
+
+mkdir -p "$(dirname "$CONF")"
+tmp=$(mktemp "$CONF.XXXXXX")
+trap 'rm -f "$tmp" ${shot:-}' EXIT
+{
+  [[ -f $CONF ]] && sed "/^$BEGIN\$/,/^$END\$/d" "$CONF" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
+  [[ -f $CONF && -s $CONF ]] && echo
+  printf '%s\n' "$block"
+} > "$tmp"
+[[ -f $CONF ]] && chmod --reference="$CONF" "$tmp"
+mv -f "$tmp" "$CONF"
+echo "bar text -> $text ($verdict on $sample)"

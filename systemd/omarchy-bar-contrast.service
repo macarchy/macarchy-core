@@ -1,0 +1,8 @@
+[Unit]
+Description=Pick the transparent bar's text colour from what is on screen
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/omarchy-bar-contrast

@@ -28,7 +28,7 @@ generic tools.
 | `omarchy-aquarium` / `-toggle` | Live GLSL wallpaper | layer 1 (`bottom`), above the wallpaper plugin; SUPER+ALT+A. Reactive: fish avoid the cursor, notifications startle the tank via `$XDG_RUNTIME_DIR/omarchy-aquarium.ctl` (fed by `omarchy-aquarium-notify`), jellies glow at night. `--no-react` disables; `omarchy-aquarium-toggle startle` tests |
 | `omarchy-pinch` | ≥4-finger pinch gestures | parses libinput events; pinch-in = launcher |
 | `omarchy-zoom` | CTRL+scroll magnifier | drives `cursor:zoom_factor` |
-| `omarchy-dock`, `omarchy-auto-appearance`, `omarchy-sun`, `omarchy-locate`, `omarchy-gtk-settings` | Dock, light/dark switching, location-based sunrise/sunset, GTK sync | |
+| `omarchy-dock`, `omarchy-auto-appearance`, `omarchy-sun`, `omarchy-locate`, `omarchy-gtk-settings`, `omarchy-bar-contrast` | Dock, light/dark switching, location-based sunrise/sunset, GTK sync, transparent-bar text colour | |
 
 **Sync rule:** these installed scripts are copies of `~/Work/omarchy-mac`.
 When editing an installed tool, mirror the change into that repo — or edit
@@ -62,6 +62,12 @@ the repo and re-run its `install.sh`. Don't let the two drift.
   (`systemctl --user disable --now macos-dynamic-wallpaper.timer`) — or
   better, switch the `"set"` in the JSON so the rotation shows what the
   user wants.
+- The bar is `"transparent": true` in shell.json. Omarchy picks its text
+  colour by sampling the static WALLPAPER FILE, which the aquarium hides —
+  black icons on blue water. `omarchy-bar-contrast` (timer every 5 min +
+  theme-set hook) samples the real screen and writes `[bar] text/active`
+  into `~/.config/omarchy/shell.toml` (a managed block; the shell hot-reloads
+  that file). If bar icons look wrong, run `omarchy-bar-contrast status`.
 - That same `latitude`/`longitude` is ALSO what `omarchy-auto-appearance`
   (via `omarchy-sun`) uses to switch Apple Glass ↔ Apple Glass Light at
   sunrise/sunset. "Auto" appearance == `omarchy-auto-appearance.timer` is
