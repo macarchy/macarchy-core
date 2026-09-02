@@ -1,0 +1,47 @@
+#!/bin/bash
+# Find where this machine is and store it as the location shared by the
+# aquarium, the dynamic wallpaper and the auto appearance:
+# latitude/longitude in ~/.config/omarchy/dynamic-wallpaper.json.
+#
+# Uses ip-api.com (no key, plain HTTP, 45 requests a minute). Nothing is sent
+# but the request itself, and the worst a forged answer can do is shift a
+# theme switch by an hour, so that is fine for a button pressed by hand.
+#
+# Prints "<lat> <lon> <city>" and re-applies the auto appearance on success;
+# writes nothing and exits 1 on any failure.
+set -uo pipefail
+
+JSON="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/dynamic-wallpaper.json"
+URL='http://ip-api.com/json/?fields=status,message,lat,lon,city'
+
+if [[ ! -f $JSON ]]; then
+  echo "omarchy-locate: $JSON is missing; nothing to update" >&2
+  exit 1
+fi
+
+if ! reply=$(curl -fsS --max-time 5 "$URL"); then
+  echo "omarchy-locate: détection impossible — hors ligne ? (curl a échoué)" >&2
+  exit 1
+fi
+
+status=$(jq -r '.status // empty' <<<"$reply" 2>/dev/null)
+if [[ $status != success ]]; then
+  echo "omarchy-locate: ip-api.com refused: $(jq -r '.message // "unexpected reply"' <<<"$reply" 2>/dev/null)" >&2
+  exit 1
+fi
+
+lat=$(jq -r '.lat' <<<"$reply")
+lon=$(jq -r '.lon' <<<"$reply")
+city=$(jq -r '.city // ""' <<<"$reply")
+
+tmp=$(mktemp "${JSON}.XXXXXX")
+if ! jq --argjson lat "$lat" --argjson lon "$lon" '.latitude = $lat | .longitude = $lon' "$JSON" > "$tmp"; then
+  rm -f "$tmp"
+  echo "omarchy-locate: could not rewrite $JSON" >&2
+  exit 1
+fi
+mv -f "$tmp" "$JSON"
+
+echo "$lat $lon $city"
+omarchy-auto-appearance || true
+exit 0
