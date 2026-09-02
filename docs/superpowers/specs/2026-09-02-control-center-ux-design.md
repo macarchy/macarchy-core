@@ -75,6 +75,7 @@ Item {
   property var  manifest: null
   property bool panelOpen: false    // le panneau est ouvert
   property bool pageShowing: false  // MA page est à l'écran
+  property bool pageSettled: true   // le doigt ne défile plus
 
   // lu par le Control Center pour la ligne d'accueil
   property string title: ""
@@ -83,8 +84,8 @@ Item {
   property bool   active: false     // position de l'interrupteur
   property bool   hasToggle: false
   property bool   alert: false      // badge urgent
-  property int    order: 50
   signal toggled()
+  signal closeRequested()           // « pousse-toi », avant d'ouvrir un éditeur
 
   property Component page: null     // instanciée à la navigation
 }
@@ -99,17 +100,24 @@ supérieure est refusé et affiche une ligne d'erreur au lieu de rien.
 - **Le coût.** Les modules ne sont instanciés qu'à la première ouverture du
   panneau, pas au démarrage du shell. `panelOpen` / `pageShowing` sont les
   seuls interrupteurs de sondage.
+- **L'ordre des lignes vit dans le manifeste**, pas dans le QML : trier ne
+  peut pas attendre l'instanciation sans réordonner les lignes sous le
+  pointeur. Les modules internes reçoivent le leur au scan.
 - **Le défilement.** La coquille possède le `Flickable` et le `WheelHandler`.
   Hyprland applique `input:touchpad:scroll_factor = 0.4` et Qt applique le
   `pixelDelta` au 1:1 : un `Flickable` nu est inutilisable sur ce trackpad.
   Le piège est résolu **une fois, dans la coquille** ; une page de module est
-  du contenu, pas un défileur.
+  du contenu, pas un défileur. C'est aussi la coquille qui baisse
+  `pageSettled` pendant le geste, pour qu'un sondage ne relayoute pas la page
+  sous le doigt.
 - **Les pannes.** Chaque module vit derrière son `Loader`. `status === Error`
   laisse une ligne en état urgent portant l'`errorString`, jamais un panneau
   cassé.
 - **Les composants.** `qs.Ui` est un vrai module QML (`qmldir`), importable
   depuis n'importe quel plugin : un module n'emprunte **rien** au Control
-  Center pour composer sa page.
+  Center pour composer sa page. Le seul composant maison dont la page Jarvis
+  avait besoin (`Disclosure`) est **copié** dans `macarchy.jarvis` — c'est le
+  prix d'une vraie frontière de plugin, et il est de 90 lignes.
 
 ### État : décentralisé, sondage exclusif
 
