@@ -40,7 +40,7 @@ Panel {
   property var expandedGroups: ({})
   property double now: Date.now()
 
-  readonly property color dimColor: Util.alpha(Color.popups.text, 0.55)
+  readonly property color dimColor: Util.alpha(Color.popups.text, 0.68)
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight

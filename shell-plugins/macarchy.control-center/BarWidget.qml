@@ -96,7 +96,7 @@ Panel {
   property int panelBrightness: 0
   property int panelMax: 1
 
-  readonly property color dimColor: Util.alpha(Color.popups.text, 0.55)
+  readonly property color dimColor: Util.alpha(Color.popups.text, 0.68)
 
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight

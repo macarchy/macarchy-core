@@ -20,7 +20,7 @@ RowLayout {
   property bool low: false
 
   readonly property color textColor: Color.popups.text
-  readonly property color dimColor: Util.alpha(Color.popups.text, 0.55)
+  readonly property color dimColor: Util.alpha(Color.popups.text, 0.68)
   readonly property color ringColor: low ? Color.urgent : Color.accent
   readonly property real fraction: Math.max(0, Math.min(1, percent / 100))
 

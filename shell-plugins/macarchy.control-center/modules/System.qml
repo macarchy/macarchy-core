@@ -125,7 +125,7 @@ Item {
         Layout.fillWidth: true
         visible: mod.health > 0
         text: "Santé " + mod.health + " % de la capacité d'origine · " + mod.cycles + " cycles"
-        color: Util.alpha(Color.popups.text, 0.55)
+        color: Util.alpha(Color.popups.text, 0.68)
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         wrapMode: Text.WordWrap
