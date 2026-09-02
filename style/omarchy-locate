@@ -30,11 +30,17 @@ if [[ $status != success ]]; then
   exit 1
 fi
 
+if ! jq -e '(.lat|type)=="number" and (.lon|type)=="number" and (.lat|fabs)<=90 and (.lon|fabs)<=180' <<<"$reply" >/dev/null 2>&1; then
+  echo "omarchy-locate: ip-api.com returned no usable coordinates" >&2
+  exit 1
+fi
+
 lat=$(jq -r '.lat' <<<"$reply")
 lon=$(jq -r '.lon' <<<"$reply")
 city=$(jq -r '.city // ""' <<<"$reply")
 
 tmp=$(mktemp "${JSON}.XXXXXX")
+trap 'rm -f "$tmp"' EXIT
 if ! jq --argjson lat "$lat" --argjson lon "$lon" '.latitude = $lat | .longitude = $lon' "$JSON" > "$tmp"; then
   rm -f "$tmp"
   echo "omarchy-locate: could not rewrite $JSON" >&2

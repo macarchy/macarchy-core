@@ -100,6 +100,10 @@ class CliTest(unittest.TestCase):
         env = dict(os.environ, TZ="Europe/Brussels")
         if home:
             env["HOME"] = home
+            # Isolate from the real desktop session's XDG_CONFIG_HOME so this
+            # exercises the $HOME/.config fallback, not whatever config dir
+            # happens to be set in the environment running the tests.
+            env.pop("XDG_CONFIG_HOME", None)
         return subprocess.run([sys.executable, str(SCRIPT), *args],
                               capture_output=True, text=True, env=env)
 

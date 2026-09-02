@@ -106,4 +106,23 @@ reset; theme apple-glass; export FAKE_SUN='{"state":"up","sunrise":null,"sunset"
 out=$("$SCRIPT" status)
 check "status polar omits times" [ "$out" = "mode=solar enabled=no want=light" ]
 
+# --- garbled omarchy-sun output does not silently force a theme ---------------
+reset; theme apple-glass; export FAKE_SUN='{"state":""}'
+err=$(AUTO_APPEARANCE_NOW=12:00 "$SCRIPT" 2>&1); rc=$?
+check "empty state exits 1" [ "$rc" -eq 1 ]
+check "empty state does not switch" not_called 'omarchy theme set'
+
+reset; theme apple-glass; export FAKE_SUN='{"state":""}'
+out=$(AUTO_APPEARANCE_NOW=12:00 "$SCRIPT" status)
+check "empty state status line" [ "$out" = "mode=solar enabled=no error=sun" ]
+
+reset; theme apple-glass; export FAKE_SUN='not json'
+err=$(AUTO_APPEARANCE_NOW=12:00 "$SCRIPT" 2>&1); rc=$?
+check "garbled sun json exits 1" [ "$rc" -eq 1 ]
+check "garbled sun json does not switch" not_called 'omarchy theme set'
+
+reset; theme apple-glass; export FAKE_SUN='not json'
+out=$(AUTO_APPEARANCE_NOW=12:00 "$SCRIPT" status)
+check "garbled sun json status line" [ "$out" = "mode=solar enabled=no error=sun" ]
+
 echo; [[ $fails -eq 0 ]] && echo "all passed" || { echo "$fails failed"; exit 1; }

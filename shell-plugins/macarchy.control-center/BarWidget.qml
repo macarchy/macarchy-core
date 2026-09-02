@@ -121,6 +121,11 @@ Panel {
     radioProc.running = true
     backlightProc.running = true
     volumeSinkProc.running = true
+
+    for (var id in moduleInstances) {
+      var inst = moduleInstances[id]
+      if (inst && typeof inst.refresh === "function") inst.refresh()
+    }
   }
 
   Timer { id: recheck; interval: 900; onTriggered: root.refresh() }

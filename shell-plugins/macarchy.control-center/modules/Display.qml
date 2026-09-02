@@ -159,6 +159,7 @@ Item {
   // never run at the same time.
 
   function refresh() {
+    locateFailed = false
     alsProc.running = true
     themeProc.running = true
     kbdProc.running = true
@@ -167,7 +168,7 @@ Item {
   }
 
   onPageShowingChanged: if (pageShowing) refresh()
-  // The home row's summary needs the theme and the ALS state too, once.
+  // The home row's summary needs the theme, the ALS state and the auto state too, once.
   onPanelOpenChanged: if (panelOpen) { alsProc.running = true; themeProc.running = true; autoProc.running = true }
 
   Timer {
@@ -257,9 +258,11 @@ Item {
     command: ["omarchy-locate"]
     onExited: function(exitCode) {
       mod.locating = false
-      mod.locateFailed = exitCode !== 0
       // omarchy-locate re-applies the theme; give omarchy-theme-set time.
+      // refresh() clears locateFailed at its top, so set it after — otherwise
+      // a failure here would be wiped by its own follow-up refresh.
       mod.refresh()
+      mod.locateFailed = exitCode !== 0
       slowRecheck.restart()
     }
   }
