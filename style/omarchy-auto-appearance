@@ -1,6 +1,14 @@
 #!/bin/bash
-# Switch between Apple Glass and Apple Glass Light on a schedule, the way
-# macOS's "Auto" appearance setting does.
+# Switch between Apple Glass and Apple Glass Light, the way macOS's "Auto"
+# appearance setting does — by default at sunrise and sunset for the location
+# shared with the aquarium and the dynamic wallpaper (omarchy-sun), or on a
+# fixed schedule (MODE=schedule).
+#
+#   omarchy-auto-appearance          apply the theme the clock wants
+#   omarchy-auto-appearance status   one line: mode= enabled= want= …
+#
+# "Auto" is on exactly when omarchy-auto-appearance.timer is enabled; nothing
+# else stores that state.
 #
 # Two deliberate guards:
 #   - If the current theme is neither Apple Glass variant, do nothing. Picking
@@ -9,33 +17,82 @@
 #   - If the correct theme is already set, do nothing. `omarchy theme set` is
 #     not free -- it restarts terminals and retints the browser -- so it should
 #     not fire on every timer tick.
+# And one refusal: when the sun cannot be computed (no location), the solar
+# mode does NOT fall back to the fixed schedule. It says so and leaves the
+# theme alone, so a broken location never masquerades as a working Auto.
 
 set -uo pipefail
 
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/auto-appearance.conf"
+MODE=solar
 LIGHT_FROM=07:00
 LIGHT_UNTIL=20:00
 DARK_THEME="Apple Glass"
 LIGHT_THEME="Apple Glass Light"
+TIMER=omarchy-auto-appearance.timer
 
 # shellcheck source=/dev/null
 [[ -r $CONF ]] && source "$CONF"
+
+action=${1:-apply}
 
 to_minutes() {
   local h=${1%%:*} m=${1##*:}
   echo $((10#$h * 60 + 10#$m))
 }
 
-now=$(to_minutes "$(date +%H:%M)")
-from=$(to_minutes "$LIGHT_FROM")
-until_=$(to_minutes "$LIGHT_UNTIL")
+# AUTO_APPEARANCE_NOW=HH:MM lets the tests pin the clock.
+now=$(to_minutes "${AUTO_APPEARANCE_NOW:-$(date +%H:%M)}")
 
-if (( from <= until_ )); then
-  (( now >= from && now < until_ )) && want=$LIGHT_THEME || want=$DARK_THEME
+# Decide `want` (dark|light) and the extra status fields.
+extra=""
+if [[ $MODE == schedule ]]; then
+  from=$(to_minutes "$LIGHT_FROM")
+  until_=$(to_minutes "$LIGHT_UNTIL")
+  if (( from <= until_ )); then
+    (( now >= from && now < until_ )) && want=light || want=dark
+  else
+    # Light window wraps past midnight.
+    (( now >= from || now < until_ )) && want=light || want=dark
+  fi
+  extra="from=$LIGHT_FROM until=$LIGHT_UNTIL"
 else
-  # Light window wraps past midnight.
-  (( now >= from || now < until_ )) && want=$LIGHT_THEME || want=$DARK_THEME
+  if ! sun=$(omarchy-sun --json 2>/dev/null) || [[ -z $sun ]]; then
+    want=""
+  else
+    state=$(jq -r '.state' <<<"$sun")
+    sunrise=$(jq -r '.sunrise // empty' <<<"$sun")
+    sunset=$(jq -r '.sunset // empty' <<<"$sun")
+    case $state in
+      up)   want=light ;;
+      down) want=dark ;;
+      *)
+        from=$(to_minutes "$sunrise")
+        until_=$(to_minutes "$sunset")
+        (( now >= from && now < until_ )) && want=light || want=dark
+        extra="sunrise=$sunrise sunset=$sunset"
+        ;;
+    esac
+  fi
 fi
+
+if [[ $action == status ]]; then
+  enabled=no
+  [[ $(systemctl --user is-enabled "$TIMER" 2>/dev/null) == enabled ]] && enabled=yes
+  if [[ -z $want ]]; then
+    echo "mode=$MODE enabled=$enabled error=sun"
+  else
+    echo "mode=$MODE enabled=$enabled want=$want${extra:+ $extra}"
+  fi
+  exit 0
+fi
+
+if [[ -z $want ]]; then
+  echo "omarchy-auto-appearance: omarchy-sun could not compute today's sun; theme left alone" >&2
+  exit 1
+fi
+
+[[ $want == light ]] && want_theme=$LIGHT_THEME || want_theme=$DARK_THEME
 
 current_slug=$(cat "$HOME/.local/state/omarchy/current/theme.name" 2>/dev/null)
 slug() { echo "$1" | tr '[:upper:]' '[:lower:]' | tr ' ' '-'; }
@@ -45,6 +102,6 @@ case "$current_slug" in
   *) exit 0 ;;  # user chose something else; leave it alone
 esac
 
-[[ $current_slug == "$(slug "$want")" ]] && exit 0
+[[ $current_slug == "$(slug "$want_theme")" ]] && exit 0
 
-exec omarchy theme set "$want"
+exec omarchy theme set "$want_theme"
