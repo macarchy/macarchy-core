@@ -6,7 +6,7 @@ cd "$(dirname "$0")"
 
 BIN="$HOME/.local/bin"
 mkdir -p "$BIN"
-install -m755 hardware/* style/* "$BIN"/
+find hardware style -maxdepth 1 -type f -exec install -m755 -t "$BIN" {} +
 
 mkdir -p "$HOME/.config/omarchy/hooks/theme-set.d"
 install -m755 hooks/omarchy-dock-theme "$HOME/.config/omarchy/hooks/theme-set.d/"
