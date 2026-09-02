@@ -40,6 +40,7 @@ if ! jq --argjson lat "$lat" --argjson lon "$lon" '.latitude = $lat | .longitude
   echo "omarchy-locate: could not rewrite $JSON" >&2
   exit 1
 fi
+chmod --reference="$JSON" "$tmp"
 mv -f "$tmp" "$JSON"
 
 echo "$lat $lon $city"

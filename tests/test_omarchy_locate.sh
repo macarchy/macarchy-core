@@ -27,7 +27,7 @@ chmod +x "$TMP/bin"/*
 fails=0
 check() { local name=$1; shift; if "$@"; then echo "ok   $name"; else echo "FAIL $name"; fails=$((fails+1)); fi; }
 reset() { : > "$FAKE_LOG"; unset FAKE_CURL FAKE_CURL_FAIL
-  printf '%s\n' '{"theme":"apple-glass","mode":"solar","latitude":48.8566,"longitude":2.3522,"set":"tahoe-beach","sets":{"tahoe-beach":{"day":"a.jpg"}}}' > "$JSON"; }
+  printf '%s\n' '{"theme":"apple-glass","mode":"solar","latitude":48.8566,"longitude":2.3522,"set":"tahoe-beach","sets":{"tahoe-beach":{"day":"a.jpg"}}}' > "$JSON"; chmod 644 "$JSON"; }
 
 reset
 out=$("$SCRIPT"); rc=$?
@@ -39,6 +39,7 @@ check "other keys intact" [ "$(jq -c '.sets' "$JSON")" = '{"tahoe-beach":{"day":
 check "theme key intact" [ "$(jq -r .theme "$JSON")" = "apple-glass" ]
 check "applies the theme afterwards" grep -qx 'omarchy-auto-appearance ' "$FAKE_LOG"
 check "asks ip-api over http" grep -q 'ip-api.com/json' "$FAKE_LOG"
+check "preserves file mode" [ "$(stat -c %a "$JSON")" = "644" ]
 
 reset; export FAKE_CURL_FAIL=1
 err=$("$SCRIPT" 2>&1 >/dev/null); rc=$?
