@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""Sunrise and sunset for the machine's location.
+
+The location is the one shared by the aquarium and the dynamic wallpaper:
+latitude/longitude in ~/.config/omarchy/dynamic-wallpaper.json. The math is
+the NOAA sunrise equation (good to about a minute), the same one
+macos-dynamic-wallpaper carries.
+
+    omarchy-sun [--lat N --lon N] [--date YYYY-MM-DD] [--json]
+
+Text output is two lines, `sunrise HH:MM` and `sunset  HH:MM`, in local time.
+When the sun never crosses the horizon that day both lines are omitted and the
+JSON form reports state "up" or "down".
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import sys
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+
+CONFIG_PATH = Path(os.environ.get("HOME", "~")).expanduser() / ".config" / "omarchy" / "dynamic-wallpaper.json"
+OBLIQUITY = math.radians(23.4397)
+HORIZON = -0.833  # degrees: refraction plus the sun's radius
+
+
+class LocationError(Exception):
+    pass
+
+
+def load_location(path=CONFIG_PATH):
+    try:
+        data = json.loads(Path(path).read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise LocationError(f"cannot read {path}: {exc}") from exc
+    try:
+        return float(data["latitude"]), float(data["longitude"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise LocationError(f"{path} has no usable latitude/longitude") from exc
+
+
+# --- NOAA sunrise equation ---------------------------------------------------
+
+def _to_julian(dt):
+    return dt.timestamp() / 86400.0 + 2440587.5
+
+
+def _from_julian(j):
+    return datetime.fromtimestamp((j - 2440587.5) * 86400.0, tz=timezone.utc)
+
+
+def solar_pair(lat, lon, when, altitude):
+    """Rise/set UTC datetimes for a sun altitude; 'up'/'down' if never crossed."""
+    n = round(_to_julian(when) - 2451545.0 + 0.0008)
+    j_star = n - lon / 360.0
+    m = (357.5291 + 0.98560028 * j_star) % 360.0
+    m_rad = math.radians(m)
+    c = (1.9148 * math.sin(m_rad) + 0.0200 * math.sin(2 * m_rad)
+         + 0.0003 * math.sin(3 * m_rad))
+    lam = math.radians((m + c + 180.0 + 102.9372) % 360.0)
+    j_transit = 2451545.0 + j_star + 0.0053 * math.sin(m_rad) - 0.0069 * math.sin(2 * lam)
+    sin_dec = math.sin(lam) * math.sin(OBLIQUITY)
+    dec = math.asin(sin_dec)
+    phi = math.radians(lat)
+    cos_omega = ((math.sin(math.radians(altitude)) - math.sin(phi) * sin_dec)
+                 / (math.cos(phi) * math.cos(dec)))
+    if cos_omega > 1.0:
+        return "down"
+    if cos_omega < -1.0:
+        return "up"
+    omega = math.degrees(math.acos(cos_omega)) / 360.0
+    return _from_julian(j_transit - omega), _from_julian(j_transit + omega)
+
+
+def sun_for_day(lat, lon, day):
+    """Sunrise/sunset of the local civil day, as local HH:MM strings."""
+    noon_local = datetime(day.year, day.month, day.day, 12, 0).astimezone()
+    result = solar_pair(lat, lon, noon_local.astimezone(timezone.utc), HORIZON)
+    out = {"latitude": lat, "longitude": lon, "sunrise": None, "sunset": None}
+    if isinstance(result, str):
+        out["state"] = result
+        return out
+    rise, set_ = result
+    out["state"] = "normal"
+    out["sunrise"] = rise.astimezone().strftime("%H:%M")
+    out["sunset"] = set_.astimezone().strftime("%H:%M")
+    return out
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Sunrise and sunset for the shared location.")
+    parser.add_argument("--lat", type=float)
+    parser.add_argument("--lon", type=float)
+    parser.add_argument("--date", type=date.fromisoformat, default=None, metavar="YYYY-MM-DD")
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+
+    if (args.lat is None) != (args.lon is None):
+        parser.error("--lat and --lon go together")
+    if args.lat is not None:
+        lat, lon = args.lat, args.lon
+    else:
+        try:
+            lat, lon = load_location()
+        except LocationError as exc:
+            print(f"omarchy-sun: {exc}", file=sys.stderr)
+            return 2
+
+    result = sun_for_day(lat, lon, args.date or date.today())
+    if args.json:
+        print(json.dumps(result))
+        return 0
+    if result["sunrise"]:
+        print(f"sunrise {result['sunrise']}")
+        print(f"sunset  {result['sunset']}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
