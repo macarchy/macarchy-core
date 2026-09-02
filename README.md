@@ -38,6 +38,7 @@ Installed as `/etc/libinput/local-overrides.quirks`; applies at next login.
 | `omarchy-zoom` | macOS-style screen magnifier on Hyprland's cursor zoom (`Ctrl` + scroll). |
 | `omarchy-auto-appearance` | Switches between the Apple Glass and Apple Glass Light themes at sunrise and sunset (or on a fixed schedule), like macOS's "Auto" appearance. Driven by a systemd user timer; "Auto" is on exactly when that timer is enabled, and the Control Center's Affichage page flips it. An existing conf without `MODE` now follows the sun; add `MODE=schedule` to keep a fixed `LIGHT_FROM`/`LIGHT_UNTIL` window. |
 | `omarchy-sun` | Prints today's sunrise and sunset for the shared location (`~/.config/omarchy/dynamic-wallpaper.json`). |
+| `omarchy-bar-contrast` | Picks the transparent bar's text colour from a live capture of the bar strip (Omarchy's own picker samples the wallpaper file and cannot see the aquarium above it), and writes it to `~/.config/omarchy/shell.toml`. Systemd timer plus a `theme-set` hook. |
 | `omarchy-locate` | Detects the machine's location (ip-api.com) and stores it in the shared location file, for the aquarium, the dynamic wallpaper and the auto appearance alike. |
 | `omarchy-gtk-settings` | Keeps GTK's `settings.ini` in step with the current Omarchy theme for apps that ignore gsettings. |
 
