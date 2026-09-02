@@ -1,0 +1,23 @@
+# Calibrated libinput thresholds for the Apple MTP trackpad (Asahi, M2 MacBook).
+#
+# Upstream's [Apple Laptop Touchpad (MTP)] entry copies the USB Magic Trackpad
+# numbers (AttrTouchSizeRange=150:130, AttrPalmSizeThreshold=1600, no thumb
+# threshold). Measured on this machine with
+#   libinput measure touch-size /dev/input/event2   (2026-09-01, 55 touches)
+# ABS_MT_TOUCH_MAJOR ranges:
+#   fingertip landing   100..300   (22% of touches land below 150 -> counted late)
+#   fingertip steady    300..550, max 612
+#   palm                1600..3776
+# Touch sizes below the "down" value are ignored as hovering, so a light
+# ring/pinky finger landing under 150 was missing from the finger count at
+# gesture start (3-finger swipe read as 2, 4 as 3). 90:70 counts every
+# observed landing immediately; the noise floor at lift-off is ~56.
+# Thumb threshold sits above the largest fingertip so a resting thumb is
+# dropped from the count instead of turning a 3-finger swipe into 4 fingers.
+# Palm threshold lowered into the empty gap between fingertips and palms.
+[Apple MTP touchpad (measured)]
+MatchUdevType=touchpad
+MatchName=Apple*MTP*
+AttrTouchSizeRange=90:70
+AttrThumbSizeThreshold=800
+AttrPalmSizeThreshold=1200
