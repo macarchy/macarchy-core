@@ -12,9 +12,16 @@ mkdir -p "$HOME/.config/omarchy/hooks/theme-set.d"
 install -m755 hooks/omarchy-dock-theme "$HOME/.config/omarchy/hooks/theme-set.d/"
 
 mkdir -p "$HOME/.config/systemd/user"
+# "Auto" appearance is on exactly when this timer is enabled, and the Control
+# Center flips it. Only a first install turns it on; a reinstall keeps the
+# user's choice.
+first_install=1
+[[ -e "$HOME/.config/systemd/user/omarchy-auto-appearance.timer" ]] && first_install=0
 install -m644 systemd/omarchy-auto-appearance.{service,timer} "$HOME/.config/systemd/user/"
 systemctl --user daemon-reload
-systemctl --user enable --now omarchy-auto-appearance.timer
+if (( first_install )); then
+    systemctl --user enable --now omarchy-auto-appearance.timer
+fi
 
 for ex in examples/*; do
     name=${ex#examples/}
