@@ -22,6 +22,12 @@ background and the [apple-glass](https://github.com/macarchy/apple-glass) /
 `udev/90-battery-charge-limit.rules` caps charging at 80% at boot and lets
 the `wheel` group flip the thresholds without root.
 
+`libinput/60-apple-mtp-touchpad.quirks` holds touch-size thresholds measured
+on the MTP trackpad with `libinput measure touch-size` (finger "down" size,
+thumb and palm rejection). Upstream libinput ships USB Magic Trackpad numbers
+for this device, which drop light fingers from the count at gesture start.
+Installed as `/etc/libinput/local-overrides.quirks`; applies at next login.
+
 ## style/ — the Mac feel, portable
 
 | Tool | What it does |
@@ -53,7 +59,7 @@ icon switches to it. The glass needs the theme to blur the
 ## Install
 
     ./install.sh          # scripts, hook, timer, example configs
-    ./install.sh --udev   # also the battery udev rule (sudo)
+    ./install.sh --udev   # also the battery udev rule + libinput trackpad quirks (sudo)
 
 Then wire the daemons and keybindings into Hyprland — see
 [`hypr/example.lua`](hypr/example.lua).
