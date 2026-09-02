@@ -73,15 +73,26 @@ Item {
       }
     }
 
+    // Every tile reserves two lines whether or not it uses them. « Ne pas
+    // déranger » does not fit on one at a quarter of a 380px panel, and
+    // letting only that tile grow gives the grid two different row heights
+    // — the label slot is fixed so the rhythm is not.
+    Text {
+      id: gauge
+      visible: false
+      text: "M\nM"
+      font.family: Style.font.family
+      font.pixelSize: Style.font.caption
+    }
+
     Text {
       width: root.width - Style.space(2)
+      height: gauge.height
       horizontalAlignment: Text.AlignHCenter
       text: root.label
       color: root.lit || root.paused ? root.textColor : root.dimColor
       font.family: Style.font.family
       font.pixelSize: Style.font.caption
-      // Two lines, because « Ne pas déranger » does not fit on one at a
-      // quarter of a 380px panel and abbreviating it would read as jargon.
       wrapMode: Text.Wrap
       maximumLineCount: 2
       elide: Text.ElideRight
