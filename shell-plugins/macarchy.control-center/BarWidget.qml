@@ -272,10 +272,14 @@ Panel {
     recheck.restart()
   }
 
+  // An explicit tap is a choice: it leaves the automatic appearance (the
+  // timer) the way picking Light or Dark does on macOS. Entering Auto is the
+  // Affichage page's job.
   function toggleAppearance() {
     var next = lightMode ? "apple-glass" : "apple-glass-light"
     themeName = next
-    Quickshell.execDetached(["omarchy-theme-set", next])
+    Quickshell.execDetached(["bash", "-c",
+      "systemctl --user disable --now omarchy-auto-appearance.timer; exec omarchy-theme-set " + next])
     slowRecheck.restart()
   }
 
