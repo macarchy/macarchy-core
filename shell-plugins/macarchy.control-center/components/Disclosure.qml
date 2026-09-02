@@ -19,7 +19,7 @@ ColumnLayout {
   default property alias content: body.data
 
   readonly property color textColor: Color.popups.text
-  readonly property color dimColor: Util.alpha(Color.popups.text, 0.55)
+  readonly property color dimColor: Util.alpha(Color.popups.text, 0.68)
 
   spacing: Style.space(8)
 

@@ -28,7 +28,7 @@ Rectangle {
 
   readonly property bool hovered: hoverTracker.hovered
   readonly property color textColor: Color.popups.text
-  readonly property color dimColor: Util.alpha(Color.popups.text, 0.55)
+  readonly property color dimColor: Util.alpha(Color.popups.text, 0.68)
 
   radius: Math.min(Style.cornerRadius, Style.space(10))
   color: hovered ? Style.hoverFill : Style.normalFill

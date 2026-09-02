@@ -331,7 +331,7 @@ Item {
           Layout.preferredWidth: Style.space(34)
           horizontalAlignment: Text.AlignRight
           text: Math.round(mod.kbdMax > 0 ? mod.kbdBrightness / mod.kbdMax * 100 : 0) + " %"
-          color: Util.alpha(Color.popups.text, 0.55)
+          color: Util.alpha(Color.popups.text, 0.68)
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
         }
@@ -345,7 +345,7 @@ Item {
       Text {
         Layout.fillWidth: true
         text: mod.alsSentence()
-        color: Util.alpha(Color.popups.text, 0.55)
+        color: Util.alpha(Color.popups.text, 0.68)
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         wrapMode: Text.WordWrap
@@ -395,7 +395,7 @@ Item {
       Text {
         Layout.fillWidth: true
         text: mod.appearanceSentence()
-        color: Util.alpha(Color.popups.text, 0.55)
+        color: Util.alpha(Color.popups.text, 0.68)
         font.family: Style.font.family
         font.pixelSize: Style.font.caption
         wrapMode: Text.WordWrap
@@ -408,7 +408,7 @@ Item {
         Text {
           Layout.fillWidth: true
           text: mod.positionSentence()
-          color: Util.alpha(Color.popups.text, 0.55)
+          color: Util.alpha(Color.popups.text, 0.68)
           font.family: Style.font.family
           font.pixelSize: Style.font.caption
           elide: Text.ElideRight
