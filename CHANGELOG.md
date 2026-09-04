@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/macarchy/macarchy-core/compare/v0.4.0...v0.4.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* a deliberate no-op exits 0, not 1 ([#12](https://github.com/macarchy/macarchy-core/issues/12)) ([2099698](https://github.com/macarchy/macarchy-core/commit/2099698d0b3778c4197e4801304cc4bffda0e535))
+
 ## [0.4.0](https://github.com/macarchy/macarchy-core/compare/v0.3.0...v0.4.0) (2026-09-04)
 
 
