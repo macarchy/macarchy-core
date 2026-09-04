@@ -120,11 +120,15 @@ settled_sample() {
 
 if [[ -z $sample ]]; then
   if [[ -z $CAPTURE_CMD ]]; then
+    # No capture tool means there is no session to sample -- nothing to tint, so
+    # nothing failed. Same reasoning as the missing bar layer below: exiting 1
+    # for it left a permanently failed unit on every machine without a
+    # compositor (macarchy-install#9). A grim that EXISTS and breaks still reds.
     for tool in grim magick hyprctl jq; do
-      command -v "$tool" >/dev/null || { echo "macarchy-bar-contrast: $tool missing" >&2; exit 1; }
+      command -v "$tool" >/dev/null || { echo "macarchy-bar-contrast: $tool missing; nothing to sample" >&2; exit 0; }
     done
     geom=$(bar_geometry)
-    [[ $geom =~ ^-?[0-9]+,-?[0-9]+\ [0-9]+x[0-9]+$ ]] || { echo "macarchy-bar-contrast: no omarchy-bar layer" >&2; exit 1; }
+    [[ $geom =~ ^-?[0-9]+,-?[0-9]+\ [0-9]+x[0-9]+$ ]] || { echo "macarchy-bar-contrast: no omarchy-bar layer; nothing to sample" >&2; exit 0; }
     wait_for_aquarium
   fi
   sample=$(settled_sample) || exit 1

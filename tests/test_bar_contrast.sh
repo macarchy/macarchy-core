@@ -104,4 +104,16 @@ check "no give-up message while the layer is in flight" \
   [ -z "$(grep -c 'no omarchy-bar layer' <<<"$out" | grep -v '^0$')" ]
 unset HCALLS
 
+# --- nothing to sample is not a failure --------------------------------------
+# Same defect as auto-appearance's: a machine with no compositor has nothing to
+# tint, and saying so with exit 1 parked the unit in `systemctl --user --failed`
+# for ever (macarchy-install#9). A capture tool that EXISTS and then breaks must
+# still red -- the "bad sample" case above pins that side.
+mkdir -p "$TMP/nobin"
+before=$(cat "$CONF")
+err=$(PATH="$TMP/nobin" "$SCRIPT" 2>&1); rc=$?
+check "no capture tool is a skip, not a failure" [ "$rc" -eq 0 ]
+check "and it says why"                          grep -q 'nothing to sample' <<<"$err"
+check "and it leaves the config untouched"       [ "$(cat "$CONF")" = "$before" ]
+
 echo; [[ $fails -eq 0 ]] && echo "all passed" || { echo "$fails failed"; exit 1; }

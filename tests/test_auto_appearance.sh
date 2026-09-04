@@ -69,9 +69,14 @@ check "polar night wants dark" called 'omarchy theme set Apple Glass'
 
 reset; theme apple-glass; export FAKE_SUN_FAIL=1
 err=$(AUTO_APPEARANCE_NOW=12:00 "$SCRIPT" 2>&1); rc=$?
-check "sun failure exits 1" [ "$rc" -eq 1 ]
+# A sun it cannot compute means "leave the theme alone", which is a decision and
+# not a failure. It used to exit 1, which parked the unit in `systemctl --user
+# --failed` for ever and fired its OnFailure= notifier on every machine with no
+# coordinates set (macarchy-install#9). Doing nothing still has to be SILENT in
+# the exit status and LOUD in the journal, so all three of these matter.
+check "a sun it cannot compute is a skip, not a failure" [ "$rc" -eq 0 ]
 check "sun failure changes nothing" not_called 'omarchy theme set'
-check "sun failure says so" grep -q 'macarchy-sun' <<<"$err"
+check "sun failure still says so" grep -q 'macarchy-sun' <<<"$err"
 
 # --- schedule mode -----------------------------------------------------------
 reset; theme apple-glass; conf 'MODE=schedule' 'LIGHT_FROM=07:00' 'LIGHT_UNTIL=20:00'
@@ -107,9 +112,13 @@ out=$("$SCRIPT" status)
 check "status polar omits times" [ "$out" = "mode=solar enabled=no want=light" ]
 
 # --- garbled macarchy-sun output does not silently force a theme ---------------
+# The invariant these three inputs defend is "it must not GUESS a theme", and
+# that is `does not switch`. The exit code was never the point: all three reach
+# the same "no answer, changed nothing" branch, which exits 0 like the script's
+# own "user chose something else" branch two screens down.
 reset; theme apple-glass; export FAKE_SUN='{"state":""}'
 err=$(AUTO_APPEARANCE_NOW=12:00 "$SCRIPT" 2>&1); rc=$?
-check "empty state exits 1" [ "$rc" -eq 1 ]
+check "empty state is a skip too"   [ "$rc" -eq 0 ]
 check "empty state does not switch" not_called 'omarchy theme set'
 
 reset; theme apple-glass; export FAKE_SUN='{"state":""}'
@@ -118,7 +127,10 @@ check "empty state status line" [ "$out" = "mode=solar enabled=no error=sun" ]
 
 reset; theme apple-glass; export FAKE_SUN='not json'
 err=$(AUTO_APPEARANCE_NOW=12:00 "$SCRIPT" 2>&1); rc=$?
-check "garbled sun json exits 1" [ "$rc" -eq 1 ]
+# Same branch as above, reached by a different input, so the same verdict: it
+# changed nothing, so it did not fail. The error stays legible where an error
+# belongs -- `status` reports `error=sun`, and the message is in the journal.
+check "garbled sun json is a skip too"   [ "$rc" -eq 0 ]
 check "garbled sun json does not switch" not_called 'omarchy theme set'
 
 reset; theme apple-glass; export FAKE_SUN='not json'
