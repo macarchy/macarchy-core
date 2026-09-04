@@ -48,7 +48,10 @@ done
 mkdir -p "$HOME/.claude/skills"
 ln -sfn "$PWD/agents/skills/omarchy-asahi" "$HOME/.claude/skills/omarchy-asahi"
 
-# Cmd-key grammar and the app switcher.
+# Cmd-key grammar and the app switcher. On this machine Omarchy already made
+# ~/.config/hypr, but on a genuinely bare box it does not exist yet and, under
+# `set -e`, the install dies here before anything below it runs.
+mkdir -p "$HOME/.config/hypr"
 install -m644 keys/macarchy-keys.lua "$HOME/.config/hypr/macarchy-keys.lua"
 grep -q macarchy-keys "$HOME/.config/hypr/bindings.lua" 2>/dev/null || cat >> "$HOME/.config/hypr/bindings.lua" <<'LUA'
 
