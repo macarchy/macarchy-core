@@ -1,0 +1,50 @@
+name: tests
+
+# The repo has had a test suite for as long as it has had daemons, and nothing
+# ever ran it but a human on the machine itself. The tests are hermetic: they
+# shim hyprctl, grim and magick and point HOME at a temp dir, so a plain runner
+# is enough -- no compositor, no Apple hardware.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pytest
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3-pytest
+
+      - name: Shell suites
+        run: |
+          fails=0
+          for t in tests/*.sh; do
+            echo "== $t"
+            bash "$t" || fails=$((fails + 1))
+          done
+          exit $fails
+
+      - name: Python suite
+        run: python3 -m pytest tests/ -q
+
+      - name: Shell syntax
+        run: |
+          for f in install.sh hardware/* style/* hooks/*; do
+            [[ -f $f ]] || continue
+            head -1 "$f" | grep -q '^#!.*bash' && bash -n "$f"
+          done
+        shell: bash
