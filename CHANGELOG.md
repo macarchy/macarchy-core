@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/macarchy/omarchy-mac/compare/v0.2.1...v0.3.0) (2026-09-04)
+
+
+### Features
+
+* notify when the appearance and contrast jobs fail ([#9](https://github.com/macarchy/omarchy-mac/issues/9)) ([8b040c6](https://github.com/macarchy/omarchy-mac/commit/8b040c6ed5573b27de18305bae83dd0f56b757ff))
+
+
+### Bug Fixes
+
+* create ~/.config/hypr before installing into it ([#8](https://github.com/macarchy/omarchy-mac/issues/8)) ([c4a190c](https://github.com/macarchy/omarchy-mac/commit/c4a190c29f719db5ad8992d9377a900c44c1d762))
+
 ## [0.2.1](https://github.com/macarchy/omarchy-mac/compare/v0.2.0...v0.2.1) (2026-09-04)
 
 
