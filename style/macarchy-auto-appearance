@@ -93,8 +93,13 @@ if [[ $action == status ]]; then
 fi
 
 if [[ -z $want ]]; then
+  # A sun we cannot compute is a reason to do NOTHING, and doing nothing on
+  # purpose is not a failure. Exiting 1 here left the unit permanently in
+  # `systemctl --user --failed` and fired its OnFailure= notifier, on every
+  # machine with no coordinates yet -- see macarchy-install#9. The message still
+  # reaches the journal; only the verdict changes.
   echo "macarchy-auto-appearance: macarchy-sun could not compute today's sun; theme left alone" >&2
-  exit 1
+  exit 0
 fi
 
 [[ $want == light ]] && want_theme=$LIGHT_THEME || want_theme=$DARK_THEME
