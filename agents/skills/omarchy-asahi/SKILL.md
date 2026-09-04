@@ -30,9 +30,8 @@ generic tools.
 | `macarchy-zoom` | CTRL+scroll magnifier | drives `cursor:zoom_factor` |
 | `macarchy-dock`, `macarchy-auto-appearance`, `macarchy-sun`, `macarchy-locate`, `macarchy-gtk-settings`, `macarchy-bar-contrast` | Dock, light/dark switching, location-based sunrise/sunset, GTK sync, transparent-bar text colour | |
 
-**Sync rule:** these installed scripts are copies of `~/Work/macarchy-core`
-(the repo that used to be called `omarchy-mac`). When editing an installed
-tool, mirror the change into that repo — or edit the repo and re-run its
+**Sync rule:** these installed scripts are copies of `~/Work/macarchy-core`.
+When editing an installed tool, mirror the change into that repo — or edit the repo and re-run its
 `install.sh`. Don't let the two drift.
 
 ## Themes and backgrounds
@@ -55,12 +54,12 @@ tool, mirror the change into that repo — or edit the repo and re-run its
   it. Toggle the aquarium off (SUPER+ALT+A) if the user wants to actually
   see a static background.
 - Beneath the aquarium there is a SECOND mover: the
-  `macarchy-dynamic-wallpaper.timer` user unit fires every ~5 minutes and
+  `macos-dynamic-wallpaper.timer` user unit fires every ~5 minutes and
   applies a time-of-day image from the set in
   `~/.config/omarchy/dynamic-wallpaper.json` (solar mode — the same lat/lon
   the aquarium's sun tracking reads). A manually set background gets
   overwritten within minutes unless that timer is stopped
-  (`systemctl --user disable --now macarchy-dynamic-wallpaper.timer`) — or
+  (`systemctl --user disable --now macos-dynamic-wallpaper.timer`) — or
   better, switch the `"set"` in the JSON so the rotation shows what the
   user wants.
 - The bar is `"transparent": true` in shell.json. Omarchy picks its text

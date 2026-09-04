@@ -4,7 +4,7 @@
 The location is the one shared by the aquarium and the dynamic wallpaper:
 latitude/longitude in ~/.config/omarchy/dynamic-wallpaper.json. The math is
 the NOAA sunrise equation (good to about a minute), the same one
-macarchy-dynamic-wallpaper carries.
+macos-dynamic-wallpaper carries.
 
     macarchy-sun [--lat N --lon N] [--date YYYY-MM-DD] [--json]
 

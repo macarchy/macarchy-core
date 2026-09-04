@@ -8,7 +8,7 @@ PartOf=graphical-session.target
 # park the bar on the previous theme's colour for a whole period. Order behind
 # the producers whenever the jobs are queued together; the timer's :30 offset
 # and the tool's own settling cover the rest.
-After=macarchy-auto-appearance.service macarchy-dynamic-wallpaper.service
+After=macarchy-auto-appearance.service macos-dynamic-wallpaper.service
 
 # A contrast job that dies silently looks exactly like a bar that picked the
 # wrong colour, which is how it went unnoticed on 2026-09-04. The notifier is

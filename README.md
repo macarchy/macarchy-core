@@ -4,13 +4,10 @@ The macOS experience for [Omarchy](https://omarchy.org) on Apple Silicon —
 a suite of small daemons and tools that make a MacBook running
 Omarchy/Asahi feel like the machine it was built to be.
 
-> **This repo used to be `macarchy/omarchy-mac`.** That name collided with
-> [`omarchy-mac`](https://github.com/omarchy-mac/omarchy-mac), the upstream
-> Arch/Hyprland distro for Apple Silicon that this machine actually runs —
-> a different project by a different org. The tools it installs moved out of
-> the `omarchy-*` command namespace for the same reason: `/usr/share/omarchy/bin`
-> comes before `~/.local/bin` on `PATH`, so a future upstream command could
-> silently shadow ours. Everything here is now `macarchy-*`.
+> **Renamed from `omarchy-mac`.** That name already belongs to
+> [a separate project](https://github.com/omarchy-mac/omarchy-mac), an
+> Arch/Hyprland distro for Apple Silicon, and the collision confused people.
+> The commands it installs are `macarchy-*` for the same reason.
 
 Companion pieces live in their own repos: the
 [macarchy-touchbar](https://github.com/macarchy/macarchy-touchbar) Touch Bar
