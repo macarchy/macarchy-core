@@ -15,7 +15,6 @@ background and the [apple-glass](https://github.com/macarchy/apple-glass) /
 
 | Tool | What it does |
 | --- | --- |
-| `omarchy-dfr` | Superseded by [macarchy-dfr](https://github.com/macarchy/macarchy-dfr), which draws the Touch Bar itself. Kept until the remaining modules migrate. |
 | `omarchy-als` | Ambient-light auto brightness for panel and keyboard backlight; learns your preferred offset from manual brightness key presses. |
 | `omarchy-battery-limit` | Toggle the battery charge ceiling between 80% (kind to the cells) and 100% (travel mode). Needs the udev rule below for rootless operation. |
 

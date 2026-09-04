@@ -10,6 +10,7 @@ find hardware style -maxdepth 1 -type f -exec install -m755 -t "$BIN" {} +
 
 mkdir -p "$HOME/.config/omarchy/hooks/theme-set.d"
 install -m755 hooks/omarchy-dock-theme "$HOME/.config/omarchy/hooks/theme-set.d/"
+install -m755 hooks/dynamic-wallpaper "$HOME/.config/omarchy/hooks/theme-set.d/"
 install -m755 hooks/omarchy-bar-contrast "$HOME/.config/omarchy/hooks/theme-set.d/"
 
 mkdir -p "$HOME/.config/systemd/user"
@@ -64,13 +65,6 @@ if [[ ${1-} == --udev ]]; then
     sudo install -d /etc/libinput
     sudo install -m644 libinput/60-apple-mtp-touchpad.quirks /etc/libinput/local-overrides.quirks
     echo "libinput trackpad quirks installed (takes effect at next login)"
-    # Touch Bar button icons: omarchy-dfr's layouts reference them by name
-    # from /etc/tiny-dfr, next to the config.toml it renders there.
-    if [[ -d /etc/tiny-dfr || -n $(command -v tiny-dfr) ]]; then
-        sudo install -d /etc/tiny-dfr
-        sudo install -m644 icons/*.svg /etc/tiny-dfr/
-        echo "Touch Bar icons installed to /etc/tiny-dfr"
-    fi
 fi
 
 echo "Installed. Wire the daemons and bindings into Hyprland: see hypr/example.lua"

@@ -13,6 +13,14 @@
 #   omarchy-bar-contrast status     print the sample and the verdict, write nothing
 #   omarchy-bar-contrast --sample '#rrggbb'   skip the capture (tests)
 #
+# The ground moves underneath us: the appearance switcher swaps the theme and
+# the wallpaper rotator swaps the image, and a single grab can catch the
+# OUTGOING frame. Reading the old ground yields the old verdict, the write is
+# skipped as "unchanged", and the bar keeps yesterday's colour until something
+# else pokes it. So the sample has to hold still before it counts — see
+# settled_sample. Test seams: OMARCHY_BAR_CONTRAST_CAPTURE (a command printing
+# '#rrggbb' in place of the screen grab) and OMARCHY_BAR_CONTRAST_SETTLE_GAP.
+#
 # Both Apple Glass themes use the same label colours, so the candidates are
 # fixed: #f5f5f7 / #ff453a on dark ground, #1d1d1f / #d70015 on light ground.
 set -uo pipefail
@@ -22,6 +30,11 @@ LIGHT_TEXT="#f5f5f7"; LIGHT_ACTIVE="#ff453a"
 DARK_TEXT="#1d1d1f";  DARK_ACTIVE="#d70015"
 BEGIN="# >>> omarchy-bar-contrast (managed; do not edit)"
 END="# <<< omarchy-bar-contrast"
+
+CAPTURE_CMD=${OMARCHY_BAR_CONTRAST_CAPTURE:-}
+SETTLE_GAP=${OMARCHY_BAR_CONTRAST_SETTLE_GAP:-0.5}
+SETTLE_AGREE=3    # consecutive grabs that must land on the same verdict
+SETTLE_TRIES=10   # ceiling, so a strobing screen can't hang the theme hook
 
 action=apply
 sample=""
@@ -43,8 +56,19 @@ contrast() {
 }
 
 # The bar strip, in logical pixels, from the layer the shell actually maps.
+# The shell unmaps and remaps that layer while it hot-reloads its config -- and
+# this tool writes the config that triggers exactly that -- so a miss is
+# usually a surface in flight, not an absent bar. Wait it out instead of
+# skipping the round, or a reload lands the bar on the wrong colour until the
+# next tick.
 bar_geometry() {
-  hyprctl layers -j 2>/dev/null | jq -r '[.[] | .levels[] | .[] | select(.namespace == "omarchy-bar")][0] | "\(.x),\(.y) \(.w)x\(.h)"' 2>/dev/null
+  local geom
+  for _ in $(seq 1 15); do
+    geom=$(hyprctl layers -j 2>/dev/null | jq -r '[.[] | .levels[] | .[] | select(.namespace == "omarchy-bar")][0] | "\(.x),\(.y) \(.w)x\(.h)"' 2>/dev/null)
+    [[ $geom =~ ^-?[0-9]+,-?[0-9]+\ [0-9]+x[0-9]+$ ]] && { echo "$geom"; return 0; }
+    sleep 0.4
+  done
+  return 1
 }
 
 # After a theme switch the aquarium is restarted by its own hook; sampling
@@ -58,23 +82,58 @@ wait_for_aquarium() {
   done
 }
 
-if [[ -z $sample ]]; then
-  for tool in grim magick hyprctl jq; do
-    command -v "$tool" >/dev/null || { echo "omarchy-bar-contrast: $tool missing" >&2; exit 1; }
+geom=""
+capture_once() {
+  if [[ -n $CAPTURE_CMD ]]; then
+    $CAPTURE_CMD
+    return
+  fi
+  local shot out
+  shot=$(mktemp --suffix=.png) || return 1
+  grim -g "$geom" "$shot" || { rm -f "$shot"; echo "omarchy-bar-contrast: grim failed" >&2; return 1; }
+  out=$(magick "$shot" -scale '1x1!' -depth 8 -format '%[hex:u]' info:- 2>/dev/null | tr 'A-F' 'a-f')
+  rm -f "$shot"
+  [[ -n $out ]] && echo "#$out"
+}
+
+verdict_of() {  # #rrggbb -> light|dark
+  local l d
+  l=$(contrast "$LIGHT_TEXT" "$1"); d=$(contrast "$DARK_TEXT" "$1")
+  awk -v l="$l" -v d="$d" 'BEGIN{print (l > d) ? "light" : "dark"}'
+}
+
+# Grab until the verdict repeats SETTLE_AGREE times running. A wallpaper or
+# theme change in flight shows up as a verdict that flips mid-run, and this
+# keeps sampling past it instead of latching the frame that was on its way out.
+settled_sample() {
+  local s v last="" agree=0 i
+  for ((i = 0; i < SETTLE_TRIES; i++)); do
+    ((i)) && sleep "$SETTLE_GAP"
+    s=$(capture_once) || return 1
+    [[ $s =~ ^#[0-9a-f]{6}$ ]] || { echo "omarchy-bar-contrast: bad sample '$s'" >&2; return 1; }
+    v=$(verdict_of "$s")
+    if [[ $v == "$last" ]]; then agree=$((agree + 1)); else agree=1; last=$v; fi
+    ((agree >= SETTLE_AGREE)) && { echo "$s"; return 0; }
   done
-  geom=$(bar_geometry)
-  [[ $geom =~ ^-?[0-9]+,-?[0-9]+\ [0-9]+x[0-9]+$ ]] || { echo "omarchy-bar-contrast: no omarchy-bar layer" >&2; exit 1; }
-  wait_for_aquarium
-  shot=$(mktemp --suffix=.png)
-  trap 'rm -f "$shot"' EXIT
-  grim -g "$geom" "$shot" || { echo "omarchy-bar-contrast: grim failed" >&2; exit 1; }
-  sample="#$(magick "$shot" -scale '1x1!' -depth 8 -format '%[hex:u]' info:- 2>/dev/null | tr 'A-F' 'a-f')"
+  echo "$s"   # never held still; the last grab is the best guess we have
+}
+
+if [[ -z $sample ]]; then
+  if [[ -z $CAPTURE_CMD ]]; then
+    for tool in grim magick hyprctl jq; do
+      command -v "$tool" >/dev/null || { echo "omarchy-bar-contrast: $tool missing" >&2; exit 1; }
+    done
+    geom=$(bar_geometry)
+    [[ $geom =~ ^-?[0-9]+,-?[0-9]+\ [0-9]+x[0-9]+$ ]] || { echo "omarchy-bar-contrast: no omarchy-bar layer" >&2; exit 1; }
+    wait_for_aquarium
+  fi
+  sample=$(settled_sample) || exit 1
 fi
 [[ $sample =~ ^#[0-9a-f]{6}$ ]] || { echo "omarchy-bar-contrast: bad sample '$sample'" >&2; exit 1; }
 
 light_c=$(contrast "$LIGHT_TEXT" "$sample")
 dark_c=$(contrast "$DARK_TEXT" "$sample")
-if awk -v l="$light_c" -v d="$dark_c" 'BEGIN{exit !(l > d)}'; then
+if [[ $(verdict_of "$sample") == light ]]; then
   verdict=light; text=$LIGHT_TEXT; active=$LIGHT_ACTIVE
 else
   verdict=dark; text=$DARK_TEXT; active=$DARK_ACTIVE
@@ -87,13 +146,17 @@ if [[ $action == status ]]; then
   exit 0
 fi
 
+# Journal what was decided even when nothing is written: a bar stuck on the
+# wrong colour is otherwise invisible after the fact.
+echo "sample=$sample verdict=$verdict text=$text" >&2
+
 current=""
 [[ -f $CONF ]] && current=$(sed -n "/^$BEGIN\$/,/^$END\$/p" "$CONF")
 [[ $current == "$block" ]] && exit 0   # same verdict: no write, no shell reload
 
 mkdir -p "$(dirname "$CONF")"
 tmp=$(mktemp "$CONF.XXXXXX")
-trap 'rm -f "$tmp" ${shot:-}' EXIT
+trap 'rm -f "$tmp"' EXIT
 {
   [[ -f $CONF ]] && sed "/^$BEGIN\$/,/^$END\$/d" "$CONF" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
   [[ -f $CONF && -s $CONF ]] && echo

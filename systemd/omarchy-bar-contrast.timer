@@ -6,7 +6,10 @@ Description=Re-check the transparent bar's text colour
 # minutes, so the ground under the bar drifts; the tool only writes when the
 # light/dark verdict flips. Shortly after login too, once the aquarium is up.
 OnStartupSec=20s
-OnCalendar=*:0/5
+# Half a minute past the mark, NOT on it: the wallpaper rotator and the
+# appearance switcher both run at *:0/5, and sampling the screen while they are
+# still repainting it reads the frame on its way out.
+OnCalendar=*:0/5:30
 Persistent=true
 
 [Install]
