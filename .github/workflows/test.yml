@@ -43,7 +43,7 @@ jobs:
 
       - name: Shell syntax
         run: |
-          for f in install.sh hardware/* style/* hooks/*; do
+          for f in install.sh hardware/* style/* hooks/* hooks/*/*; do
             [[ -f $f ]] || continue
             head -1 "$f" | grep -q '^#!.*bash' && bash -n "$f"
           done
