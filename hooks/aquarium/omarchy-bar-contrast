@@ -1,0 +1,7 @@
+#!/bin/bash
+# omarchy-aquarium hook ($1 = on|off): the tank just went on or off, which
+# repaints the entire screen under a transparent bar. Re-pick the bar's text
+# colour now instead of leaving it wrong until the 5-minute timer notices.
+# omarchy-bar-contrast waits for the aquarium's layer itself and samples until
+# the verdict holds still, so it is safe to call the instant the state changes.
+exec omarchy-bar-contrast

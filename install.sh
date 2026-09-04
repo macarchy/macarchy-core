@@ -12,6 +12,10 @@ mkdir -p "$HOME/.config/omarchy/hooks/theme-set.d"
 install -m755 hooks/omarchy-dock-theme "$HOME/.config/omarchy/hooks/theme-set.d/"
 install -m755 hooks/dynamic-wallpaper "$HOME/.config/omarchy/hooks/theme-set.d/"
 install -m755 hooks/omarchy-bar-contrast "$HOME/.config/omarchy/hooks/theme-set.d/"
+# ... and the same tool on the aquarium's own hook path: toggling the tank
+# repaints the screen the bar is sampling. Harmless if the aquarium is absent.
+install -d "$HOME/.config/omarchy-aquarium/hooks"
+install -m755 hooks/aquarium/omarchy-bar-contrast "$HOME/.config/omarchy-aquarium/hooks/"
 
 mkdir -p "$HOME/.config/systemd/user"
 # "Auto" appearance is on exactly when this timer is enabled, and the Control
