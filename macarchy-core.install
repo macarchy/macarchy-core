@@ -1,0 +1,42 @@
+post_install() {
+  cat <<'NOTE'
+
+  macarchy-core's commands, units and udev rule are installed system-wide.
+
+  The rest of what install.sh does is USER configuration, and pacman cannot write
+  into your $HOME. The pieces are under /usr/share/macarchy-core/ — copy the ones
+  you want:
+
+    S=/usr/share/macarchy-core
+
+    # theme hooks
+    install -Dm755 $S/hooks/macarchy-dock-theme      ~/.config/omarchy/hooks/theme-set.d/
+    install -Dm755 $S/hooks/dynamic-wallpaper        ~/.config/omarchy/hooks/theme-set.d/
+    install -Dm755 $S/hooks/macarchy-bar-contrast    ~/.config/omarchy/hooks/theme-set.d/
+    install -Dm755 $S/hooks/aquarium/macarchy-bar-contrast ~/.config/omarchy-aquarium/hooks/
+
+    # shell plugins (control centre, notification centre, Cmd+Tab switcher)
+    cp -r $S/shell-plugins/* ~/.config/omarchy/plugins/
+
+    # Cmd-key grammar for Hyprland
+    install -Dm644 $S/keys/macarchy-keys.lua ~/.config/hypr/macarchy-keys.lua
+
+    # starter configs
+    ls $S/examples/
+
+  Then:
+    systemctl --user enable --now macarchy-auto-appearance.timer macarchy-bar-contrast.timer
+
+  Running the repo's ./install.sh instead does all of this for you; the package
+  exists so the commands and units can be managed by pacman.
+
+NOTE
+}
+
+post_upgrade() {
+  systemctl --user try-restart macarchy-auto-appearance.service macarchy-bar-contrast.service 2>/dev/null || true
+}
+
+pre_remove() {
+  systemctl --user disable --now macarchy-auto-appearance.timer macarchy-bar-contrast.timer 2>/dev/null || true
+}
