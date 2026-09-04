@@ -64,10 +64,15 @@ the repo and re-run its `install.sh`. Don't let the two drift.
   user wants.
 - The bar is `"transparent": true` in shell.json. Omarchy picks its text
   colour by sampling the static WALLPAPER FILE, which the aquarium hides —
-  black icons on blue water. `omarchy-bar-contrast` (timer every 5 min +
-  theme-set hook) samples the real screen and writes `[bar] text/active`
-  into `~/.config/omarchy/shell.toml` (a managed block; the shell hot-reloads
-  that file). If bar icons look wrong, run `omarchy-bar-contrast status`.
+  black icons on blue water. `omarchy-bar-contrast` (timer every 5 min, a
+  theme-set hook, and an `~/.config/omarchy-aquarium/hooks/` hook since
+  2026-09-04 — toggling the tank repaints the very screen it samples)
+  samples the real screen and writes `[bar] text/active` into
+  `~/.config/omarchy/shell.toml` (a managed block; the shell hot-reloads
+  that file). If bar icons look wrong, run `omarchy-bar-contrast status`:
+  it prints the sample and the verdict without writing anything, so
+  comparing it with what is in shell.toml says whether the value is merely
+  stale.
 - That same `latitude`/`longitude` is ALSO what `omarchy-auto-appearance`
   (via `omarchy-sun`) uses to switch Apple Glass ↔ Apple Glass Light at
   sunrise/sunset. "Auto" appearance == `omarchy-auto-appearance.timer` is
