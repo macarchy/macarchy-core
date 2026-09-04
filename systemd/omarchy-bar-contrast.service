@@ -10,6 +10,11 @@ PartOf=graphical-session.target
 # and the tool's own settling cover the rest.
 After=omarchy-auto-appearance.service macos-dynamic-wallpaper.service
 
+# A contrast job that dies silently looks exactly like a bar that picked the
+# wrong colour, which is how it went unnoticed on 2026-09-04. The notifier is
+# shared and ships from macarchy-install.
+OnFailure=macarchy-failed@%n.service
+
 [Service]
 Type=oneshot
 ExecStart=%h/.local/bin/omarchy-bar-contrast
