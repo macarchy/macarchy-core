@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/macarchy/macarchy-core/compare/v0.4.1...v0.5.0) (2026-09-04)
+
+
+### Features
+
+* **pkg:** publish an installable package on every release ([#14](https://github.com/macarchy/macarchy-core/issues/14)) ([fed49d7](https://github.com/macarchy/macarchy-core/commit/fed49d7922574333891c5991160144bdc628167c))
+
 ## [0.4.1](https://github.com/macarchy/macarchy-core/compare/v0.4.0...v0.4.1) (2026-09-04)
 
 
