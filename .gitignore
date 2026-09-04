@@ -1,3 +1,8 @@
 # Build output from the python daemons (macarchy-touchbar, macarchy-als).
 __pycache__/
 *.pyc
+
+# implement-issue / merge-pr build their worktrees here. Unignored, a stray
+# `git add -A` stages a whole second checkout — so both skills refuse to
+# create one until this rule exists.
+.claude/worktrees/
