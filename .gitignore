@@ -6,3 +6,4 @@ __pycache__/
 # `git add -A` stages a whole second checkout — so both skills refuse to
 # create one until this rule exists.
 .claude/worktrees/
+.worktrees/

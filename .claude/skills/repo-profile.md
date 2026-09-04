@@ -82,8 +82,9 @@
 - Commands live in the macarchy-* namespace, never omarchy-* — upstream would shadow them.
 
 ## Worktree home
-- `.claude/worktrees/` (verified ignored — the rule was added on 2026-09-05 and `worktrees-ignored.sh`
-  exits 0; before it, `implement-issue` and `merge-pr` refused to create a worktree here)
+- `.claude/worktrees/` **and** `.worktrees/` — BOTH verified ignored. The guard checks both homes
+  and refuses when either is unignored, so ignoring only one still blocks `implement-issue` and
+  `merge-pr` (that is exactly what happened on 2026-09-05 before the second line was added).
 
 ## Environment gotchas
 - This machine is an **aarch64 Asahi Linux M2 MacBook**, not a stock x86 box. Anything touching
