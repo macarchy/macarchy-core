@@ -3,6 +3,13 @@ Description=Pick the transparent bar's text colour from what is on screen
 After=graphical-session.target
 PartOf=graphical-session.target
 
+# This reads the screen that those two units repaint. All three used to fire on
+# the same five-minute boundary, so a grab could land on the outgoing frame and
+# park the bar on the previous theme's colour for a whole period. Order behind
+# the producers whenever the jobs are queued together; the timer's :30 offset
+# and the tool's own settling cover the rest.
+After=omarchy-auto-appearance.service macos-dynamic-wallpaper.service
+
 [Service]
 Type=oneshot
 ExecStart=%h/.local/bin/omarchy-bar-contrast

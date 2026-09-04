@@ -22,7 +22,7 @@ generic tools.
 
 | Tool | Owns | Notes |
 |------|------|-------|
-| `omarchy-dfr` | Touch Bar (context-aware pages) | tiny-dfr based; see constraints below |
+| `macarchy-dfr` | Touch Bar (context-aware pages, modules) | its own repo; a systemd **user** service that draws the panel over DRM and reads its touch surface over evdev. tiny-dfr is masked. See constraints below |
 | `omarchy-als` | Panel + keyboard auto-brightness | learns offsets from manual brightness keys; `omarchy-als toggle` pauses it |
 | `omarchy-battery-limit` | 80% charge cap | `toggle|on|off|status`; udev rule restores 80% at boot |
 | `omarchy-aquarium` / `-toggle` | Live GLSL wallpaper | layer 1 (`bottom`), above the wallpaper plugin; SUPER+ALT+A. Reactive: fish avoid the cursor, notifications startle the tank via `$XDG_RUNTIME_DIR/omarchy-aquarium.ctl` (fed by `omarchy-aquarium-notify`), jellies glow at night. `--no-react` disables; `omarchy-aquarium-toggle startle` tests |
@@ -101,11 +101,28 @@ the repo and re-run its `install.sh`. Don't let the two drift.
   userspace, so all video is software-decoded. Don't add `hwdec` to mpv or
   debug its absence as a bug.
 
-## Touch Bar (tiny-dfr) constraints
+## Touch Bar (macarchy-dfr) constraints
 
-- uinput capabilities are frozen at daemon start; F13–F24 have no keysyms.
-- Reloading tiny-dfr config while a touch is in progress panics the daemon.
-- Button icons live in `/etc/tiny-dfr/` (hand-drawn SVGs).
+`macarchy-dfr` replaced the old `omarchy-dfr`/tiny-dfr pair: it owns the panel
+itself, so there is no config to rewrite and no F13–F24 keycode bridge in
+`bindings.lua` any more — it runs commands directly and types through its own
+uinput device.
+
+- **Never hardcode `/dev/dri/cardN`**: the Touch Bar's card number moves
+  between boots. The daemon finds it by
+  `/dev/dri/by-path/*display-pipe-card`, then by scanning for a connected
+  connector with an extremely portrait mode (60×2008).
+- uinput capabilities are frozen at daemon start. `/dev/uinput` needs both
+  the udev rule *and* `/etc/modules-load.d/macarchy-dfr.conf`: it is a static
+  devnode, so with the module unloaded no uevent ever relaxes its mode and
+  key buttons silently do nothing.
+- Panel brightness costs ~44 ms per write — never write it from the event
+  loop.
+- **Verify without eyes**: `macarchy-dfr screenshot out.png` (then look at
+  the PNG), `macarchy-dfr touch x,y`, `macarchy-dfr status`. Logs go to
+  `journalctl --user -u macarchy-dfr`.
+- Buttons live in `~/.config/macarchy-dfr/layouts.toml` and name Material
+  Symbols glyphs, not SVG files.
 
 If a task means changing one of these tools' behavior (not just using it),
 that's development on the `~/Work` repos — check the repo's own docs first.

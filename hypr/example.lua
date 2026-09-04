@@ -2,7 +2,7 @@
 -- Merge into ~/.config/hypr/autostart.lua and bindings.lua.
 
 -- autostart.lua
-o.exec_on_start("omarchy-dfr daemon")     -- Touch Bar
+o.exec_on_start("systemctl --user start macarchy-dfr.service")  -- Touch Bar
 o.exec_on_start("omarchy-als daemon")     -- ambient-light auto brightness
 o.exec_on_start("omarchy-pinch")          -- four-finger pinch gestures
 o.exec_on_start(os.getenv("HOME") .. "/.local/bin/omarchy-dock")
