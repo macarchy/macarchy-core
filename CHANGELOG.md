@@ -27,7 +27,7 @@
 * **als:** report the paused state in status ([2849e22](https://github.com/macarchy/macarchy-core/commit/2849e221657305f4a6f3ca22ffc017ad6cc7920b))
 * **appearance:** 5-minute timer, example conf, enable on first install only ([b956970](https://github.com/macarchy/macarchy-core/commit/b9569707de402eb53990bceb6dff77a48cd855b4))
 * **appearance:** follow the sun by default, add status ([f4d5e2b](https://github.com/macarchy/macarchy-core/commit/f4d5e2bba4c0bc943c477cca4624e6ba85b382c3))
-* **bar-contrast:** add macarchy-bar-contrast — pick the transparent bar's text colour from the screen ([217884f](https://github.com/macarchy/macarchy-core/commit/217884f854089df9ba830463f0fc77a8927731c9))
+* **bar-contrast:** add omarchy-bar-contrast — pick the transparent bar's text colour from the screen ([217884f](https://github.com/macarchy/macarchy-core/commit/217884f854089df9ba830463f0fc77a8927731c9))
 * **control-center:** a shell that hosts modules, and a home worth looking at ([c0c7cf5](https://github.com/macarchy/macarchy-core/commit/c0c7cf530da4fa0279e3250cf39b6de59e29ab27))
 * **control-center:** Apparence — assemble your own Jarvis ([1c4f67e](https://github.com/macarchy/macarchy-core/commit/1c4f67ec0d75997aa5c2405ecee727c8b44d06b2))
 * **control-center:** Auto appearance follows the sun, with a Détecter button ([5ac7c49](https://github.com/macarchy/macarchy-core/commit/5ac7c49962e3bb04f133ac1a431acad1dbd3d361))
@@ -39,9 +39,9 @@
 * **hypr:** Cmd-key grammar and the Cmd+Tab app switcher ([eb5430e](https://github.com/macarchy/macarchy-core/commit/eb5430e9eb015d0609d7a208ea21a191b802e989))
 * **icons:** bring the hand-drawn Touch Bar SVGs into the repo ([2376f69](https://github.com/macarchy/macarchy-core/commit/2376f69ac46010add30afbdf219380e89426d926))
 * **libinput:** ship the measured libinput thresholds for the MTP trackpad ([f27c8ad](https://github.com/macarchy/macarchy-core/commit/f27c8ada6df4d1e13f6e2a0a3538eedf20deb5da))
-* **locate:** add macarchy-locate — IP geolocation into the shared location ([b6e094b](https://github.com/macarchy/macarchy-core/commit/b6e094bfcd28c9882d515bc425a33a97b6c2193f))
+* **locate:** add omarchy-locate — IP geolocation into the shared location ([b6e094b](https://github.com/macarchy/macarchy-core/commit/b6e094bfcd28c9882d515bc425a33a97b6c2193f))
 * **shell-plugins:** bring the Control Center and Notification Center under version control ([cdb0458](https://github.com/macarchy/macarchy-core/commit/cdb045829873d700c250e541c9c5f5e3006bd43b))
-* **sun:** add macarchy-sun — sunrise and sunset for the shared location ([d80d7f3](https://github.com/macarchy/macarchy-core/commit/d80d7f3d6b5ba22ca9e2e95bf933dc9d3f9398bf))
+* **sun:** add omarchy-sun — sunrise and sunset for the shared location ([d80d7f3](https://github.com/macarchy/macarchy-core/commit/d80d7f3d6b5ba22ca9e2e95bf933dc9d3f9398bf))
 
 
 ### Bug Fixes
