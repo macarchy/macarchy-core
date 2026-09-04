@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/macarchy/omarchy-mac/compare/v0.2.0...v0.2.1) (2026-09-04)
+
+
+### Bug Fixes
+
+* **bar-contrast:** follow the aquarium, not just the theme and the clock ([#5](https://github.com/macarchy/omarchy-mac/issues/5)) ([ad2f90b](https://github.com/macarchy/omarchy-mac/commit/ad2f90b487fd96ff29b4f2b1b46404b91d5767e6))
+
 ## [0.2.0](https://github.com/macarchy/omarchy-mac/compare/v0.1.0...v0.2.0) (2026-09-04)
 
 
