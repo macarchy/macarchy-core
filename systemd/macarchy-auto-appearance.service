@@ -9,4 +9,4 @@ OnFailure=macarchy-failed@%n.service
 
 [Service]
 Type=oneshot
-ExecStart=%h/.local/bin/omarchy-auto-appearance
+ExecStart=%h/.local/bin/macarchy-auto-appearance

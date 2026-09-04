@@ -1,13 +1,13 @@
 #!/bin/bash
 # Switch between Apple Glass and Apple Glass Light, the way macOS's "Auto"
 # appearance setting does — by default at sunrise and sunset for the location
-# shared with the aquarium and the dynamic wallpaper (omarchy-sun), or on a
+# shared with the aquarium and the dynamic wallpaper (macarchy-sun), or on a
 # fixed schedule (MODE=schedule).
 #
-#   omarchy-auto-appearance          apply the theme the clock wants
-#   omarchy-auto-appearance status   one line: mode= enabled= want= …
+#   macarchy-auto-appearance          apply the theme the clock wants
+#   macarchy-auto-appearance status   one line: mode= enabled= want= …
 #
-# "Auto" is on exactly when omarchy-auto-appearance.timer is enabled; nothing
+# "Auto" is on exactly when macarchy-auto-appearance.timer is enabled; nothing
 # else stores that state.
 #
 # Two deliberate guards:
@@ -29,7 +29,7 @@ LIGHT_FROM=07:00
 LIGHT_UNTIL=20:00
 DARK_THEME="Apple Glass"
 LIGHT_THEME="Apple Glass Light"
-TIMER=omarchy-auto-appearance.timer
+TIMER=macarchy-auto-appearance.timer
 
 # shellcheck source=/dev/null
 [[ -r $CONF ]] && source "$CONF"
@@ -57,7 +57,7 @@ if [[ $MODE == schedule ]]; then
   fi
   extra="from=$LIGHT_FROM until=$LIGHT_UNTIL"
 else
-  if ! sun=$(omarchy-sun --json 2>/dev/null) || [[ -z $sun ]]; then
+  if ! sun=$(macarchy-sun --json 2>/dev/null) || [[ -z $sun ]]; then
     want=""
   else
     state=$(jq -r '.state // empty' <<<"$sun" 2>/dev/null)
@@ -93,7 +93,7 @@ if [[ $action == status ]]; then
 fi
 
 if [[ -z $want ]]; then
-  echo "omarchy-auto-appearance: omarchy-sun could not compute today's sun; theme left alone" >&2
+  echo "macarchy-auto-appearance: macarchy-sun could not compute today's sun; theme left alone" >&2
   exit 1
 fi
 

@@ -27,7 +27,7 @@ pragma ComponentBehavior: Bound
 //
 // Every control routes through its owner: in-process shell services
 // reactively, the macarchy daemons via their own CLIs, brightness via
-// brightnessctl (the same path the keys take, which is what omarchy-als
+// brightnessctl (the same path the keys take, which is what macarchy-als
 // watches to learn its offset), radios via nmcli / bluetoothctl with the full
 // device UIs deep-linked to the panels that already exist.
 
@@ -74,7 +74,7 @@ Panel {
   property bool batteryLimited: true
   property bool aquariumOn: false
   // "on" | "paused" | "off" — the daemon's status line reports paused since
-  // the omarchy-als paused-marker patch.
+  // the macarchy-als paused-marker patch.
   property string alsState: "off"
   property string themeName: ""
   readonly property bool lightMode: themeName === "apple-glass-light"
@@ -256,7 +256,7 @@ Panel {
 
   function toggleBatteryLimit() {
     batteryLimited = !batteryLimited
-    Quickshell.execDetached(["omarchy-battery-limit", "toggle"])
+    Quickshell.execDetached(["macarchy-battery-limit", "toggle"])
     recheck.restart()
   }
 
@@ -269,10 +269,10 @@ Panel {
   function toggleAls() {
     if (alsState === "off") {
       alsState = "on"
-      Quickshell.execDetached(["omarchy-als", "daemon"])
+      Quickshell.execDetached(["macarchy-als", "daemon"])
     } else {
       alsState = alsState === "paused" ? "on" : "paused"
-      Quickshell.execDetached(["omarchy-als", "toggle"])
+      Quickshell.execDetached(["macarchy-als", "toggle"])
     }
     recheck.restart()
   }
@@ -284,7 +284,7 @@ Panel {
     var next = lightMode ? "apple-glass" : "apple-glass-light"
     themeName = next
     Quickshell.execDetached(["bash", "-c",
-      "systemctl --user disable --now omarchy-auto-appearance.timer; exec omarchy-theme-set " + next])
+      "systemctl --user disable --now macarchy-auto-appearance.timer; exec omarchy-theme-set " + next])
     slowRecheck.restart()
   }
 
@@ -347,7 +347,7 @@ Panel {
 
   Process {
     id: alsProc
-    command: ["bash", "-c", "omarchy-als status 2>/dev/null | tail -1"]
+    command: ["bash", "-c", "macarchy-als status 2>/dev/null | tail -1"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -416,7 +416,7 @@ Panel {
 
   // Trailing-edge throttle: dragging emits a stream of moved() values, the
   // last one within each window is what brightnessctl gets. The settled value
-  // is what omarchy-als confirms over two polls and learns from.
+  // is what macarchy-als confirms over two polls and learns from.
   property int pendingPanel: -1
 
   Timer {

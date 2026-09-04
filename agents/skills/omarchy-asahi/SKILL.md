@@ -22,17 +22,18 @@ generic tools.
 
 | Tool | Owns | Notes |
 |------|------|-------|
-| `macarchy-dfr` | Touch Bar (context-aware pages, modules) | its own repo; a systemd **user** service that draws the panel over DRM and reads its touch surface over evdev. tiny-dfr is masked. See constraints below |
-| `omarchy-als` | Panel + keyboard auto-brightness | learns offsets from manual brightness keys; `omarchy-als toggle` pauses it |
-| `omarchy-battery-limit` | 80% charge cap | `toggle|on|off|status`; udev rule restores 80% at boot |
+| `macarchy-touchbar` | Touch Bar (context-aware pages, modules) | its own repo, `macarchy/macarchy-touchbar`; a systemd **user** service that draws the panel over DRM and reads its touch surface over evdev. tiny-dfr is masked. See constraints below |
+| `macarchy-als` | Panel + keyboard auto-brightness | learns offsets from manual brightness keys; `macarchy-als toggle` pauses it |
+| `macarchy-battery-limit` | 80% charge cap | `toggle|on|off|status`; udev rule restores 80% at boot |
 | `omarchy-aquarium` / `-toggle` | Live GLSL wallpaper | layer 1 (`bottom`), above the wallpaper plugin; SUPER+ALT+A. Reactive: fish avoid the cursor, notifications startle the tank via `$XDG_RUNTIME_DIR/omarchy-aquarium.ctl` (fed by `omarchy-aquarium-notify`), jellies glow at night. `--no-react` disables; `omarchy-aquarium-toggle startle` tests |
-| `omarchy-pinch` | ≥4-finger pinch gestures | parses libinput events; pinch-in = launcher |
-| `omarchy-zoom` | CTRL+scroll magnifier | drives `cursor:zoom_factor` |
-| `omarchy-dock`, `omarchy-auto-appearance`, `omarchy-sun`, `omarchy-locate`, `omarchy-gtk-settings`, `omarchy-bar-contrast` | Dock, light/dark switching, location-based sunrise/sunset, GTK sync, transparent-bar text colour | |
+| `macarchy-pinch` | ≥4-finger pinch gestures | parses libinput events; pinch-in = launcher |
+| `macarchy-zoom` | CTRL+scroll magnifier | drives `cursor:zoom_factor` |
+| `macarchy-dock`, `macarchy-auto-appearance`, `macarchy-sun`, `macarchy-locate`, `macarchy-gtk-settings`, `macarchy-bar-contrast` | Dock, light/dark switching, location-based sunrise/sunset, GTK sync, transparent-bar text colour | |
 
-**Sync rule:** these installed scripts are copies of `~/Work/omarchy-mac`.
-When editing an installed tool, mirror the change into that repo — or edit
-the repo and re-run its `install.sh`. Don't let the two drift.
+**Sync rule:** these installed scripts are copies of `~/Work/macarchy-core`
+(the repo that used to be called `omarchy-mac`). When editing an installed
+tool, mirror the change into that repo — or edit the repo and re-run its
+`install.sh`. Don't let the two drift.
 
 ## Themes and backgrounds
 
@@ -54,32 +55,32 @@ the repo and re-run its `install.sh`. Don't let the two drift.
   it. Toggle the aquarium off (SUPER+ALT+A) if the user wants to actually
   see a static background.
 - Beneath the aquarium there is a SECOND mover: the
-  `macos-dynamic-wallpaper.timer` user unit fires every ~5 minutes and
+  `macarchy-dynamic-wallpaper.timer` user unit fires every ~5 minutes and
   applies a time-of-day image from the set in
   `~/.config/omarchy/dynamic-wallpaper.json` (solar mode — the same lat/lon
   the aquarium's sun tracking reads). A manually set background gets
   overwritten within minutes unless that timer is stopped
-  (`systemctl --user disable --now macos-dynamic-wallpaper.timer`) — or
+  (`systemctl --user disable --now macarchy-dynamic-wallpaper.timer`) — or
   better, switch the `"set"` in the JSON so the rotation shows what the
   user wants.
 - The bar is `"transparent": true` in shell.json. Omarchy picks its text
   colour by sampling the static WALLPAPER FILE, which the aquarium hides —
-  black icons on blue water. `omarchy-bar-contrast` (timer every 5 min, a
+  black icons on blue water. `macarchy-bar-contrast` (timer every 5 min, a
   theme-set hook, and an `~/.config/omarchy-aquarium/hooks/` hook since
   2026-09-04 — toggling the tank repaints the very screen it samples)
   samples the real screen and writes `[bar] text/active` into
   `~/.config/omarchy/shell.toml` (a managed block; the shell hot-reloads
-  that file). If bar icons look wrong, run `omarchy-bar-contrast status`:
+  that file). If bar icons look wrong, run `macarchy-bar-contrast status`:
   it prints the sample and the verdict without writing anything, so
   comparing it with what is in shell.toml says whether the value is merely
   stale.
-- That same `latitude`/`longitude` is ALSO what `omarchy-auto-appearance`
-  (via `omarchy-sun`) uses to switch Apple Glass ↔ Apple Glass Light at
-  sunrise/sunset. "Auto" appearance == `omarchy-auto-appearance.timer` is
+- That same `latitude`/`longitude` is ALSO what `macarchy-auto-appearance`
+  (via `macarchy-sun`) uses to switch Apple Glass ↔ Apple Glass Light at
+  sunrise/sunset. "Auto" appearance == `macarchy-auto-appearance.timer` is
   enabled; the Control Center's Affichage page and its Apparence tile flip
   that timer, so check `systemctl --user is-enabled
-  omarchy-auto-appearance.timer` before wondering why a theme "changed by
-  itself". `omarchy-locate` rewrites the coordinates from ip-api.com; the
+  macarchy-auto-appearance.timer` before wondering why a theme "changed by
+  itself". `macarchy-locate` rewrites the coordinates from ip-api.com; the
   aquarium only re-reads them on its next start.
 
 ## Hyprland gotchas specific to this box
@@ -106,10 +107,11 @@ the repo and re-run its `install.sh`. Don't let the two drift.
   userspace, so all video is software-decoded. Don't add `hwdec` to mpv or
   debug its absence as a bug.
 
-## Touch Bar (macarchy-dfr) constraints
+## Touch Bar (macarchy-touchbar) constraints
 
-`macarchy-dfr` replaced the old `omarchy-dfr`/tiny-dfr pair: it owns the panel
-itself, so there is no config to rewrite and no F13–F24 keycode bridge in
+`macarchy-touchbar` owns the Touch Bar panel outright. It replaced the earlier
+arrangement, where a helper script drove the upstream `tiny-dfr` renderer, so
+there is no tiny-dfr config to rewrite and no F13–F24 keycode bridge in
 `bindings.lua` any more — it runs commands directly and types through its own
 uinput device.
 
@@ -118,15 +120,15 @@ uinput device.
   `/dev/dri/by-path/*display-pipe-card`, then by scanning for a connected
   connector with an extremely portrait mode (60×2008).
 - uinput capabilities are frozen at daemon start. `/dev/uinput` needs both
-  the udev rule *and* `/etc/modules-load.d/macarchy-dfr.conf`: it is a static
+  the udev rule *and* `/etc/modules-load.d/macarchy-touchbar.conf`: it is a static
   devnode, so with the module unloaded no uevent ever relaxes its mode and
   key buttons silently do nothing.
 - Panel brightness costs ~44 ms per write — never write it from the event
   loop.
-- **Verify without eyes**: `macarchy-dfr screenshot out.png` (then look at
-  the PNG), `macarchy-dfr touch x,y`, `macarchy-dfr status`. Logs go to
-  `journalctl --user -u macarchy-dfr`.
-- Buttons live in `~/.config/macarchy-dfr/layouts.toml` and name Material
+- **Verify without eyes**: `macarchy-touchbar screenshot out.png` (then look at
+  the PNG), `macarchy-touchbar touch x,y`, `macarchy-touchbar status`. Logs go to
+  `journalctl --user -u macarchy-touchbar`.
+- Buttons live in `~/.config/macarchy-touchbar/layouts.toml` and name Material
   Symbols glyphs, not SVG files.
 
 If a task means changing one of these tools' behavior (not just using it),

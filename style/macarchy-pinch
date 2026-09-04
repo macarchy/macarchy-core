@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""omarchy-pinch - four-finger pinch gestures for the trackpad.
+"""macarchy-pinch - four-finger pinch gestures for the trackpad.
 
 Hyprland's gesture system only handles swipes, but libinput reports pinch
 gestures with their finger count and a running scale. This daemon watches
@@ -24,7 +24,7 @@ import time
 ACTIONS = {
     # Fired when a >=4-finger pinch ends past the threshold. Empty = disabled.
     "in": "omarchy menu",     # Launchpad
-    "out": "",                # e.g. "omarchy-zoom reset", or hyprexpo later
+    "out": "",                # e.g. "macarchy-zoom reset", or hyprexpo later
 }
 SCALE_IN = 0.72               # final scale below this commits a pinch-in
 SCALE_OUT = 1.35              # ...above this, a pinch-out
@@ -36,7 +36,7 @@ END_RE = re.compile(r"GESTURE_PINCH_END\s+\S+\s+(\d+)(.*)")
 
 
 def log(msg):
-    print(f"omarchy-pinch: {msg}", file=sys.stderr, flush=True)
+    print(f"macarchy-pinch: {msg}", file=sys.stderr, flush=True)
 
 
 def fire(cmd):

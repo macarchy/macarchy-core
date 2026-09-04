@@ -1,22 +1,32 @@
-# omarchy-mac
+# macarchy-core
 
 The macOS experience for [Omarchy](https://omarchy.org) on Apple Silicon —
 a suite of small daemons and tools that make a MacBook running
 Omarchy/Asahi feel like the machine it was built to be.
 
+> **This repo used to be `macarchy/omarchy-mac`.** That name collided with
+> [`omarchy-mac`](https://github.com/omarchy-mac/omarchy-mac), the upstream
+> Arch/Hyprland distro for Apple Silicon that this machine actually runs —
+> a different project by a different org. The tools it installs moved out of
+> the `omarchy-*` command namespace for the same reason: `/usr/share/omarchy/bin`
+> comes before `~/.local/bin` on `PATH`, so a future upstream command could
+> silently shadow ours. Everything here is now `macarchy-*`.
+
 Companion pieces live in their own repos: the
-[omarchy-aquarium](https://github.com/macarchy/omarchy-aquarium) animated
-background and the [apple-glass](https://github.com/macarchy/apple-glass) /
+[macarchy-touchbar](https://github.com/macarchy/macarchy-touchbar) Touch Bar
+daemon, the [omarchy-aquarium](https://github.com/macarchy/omarchy-aquarium)
+animated background and the
+[apple-glass](https://github.com/macarchy/apple-glass) /
 [apple-glass-light](https://github.com/macarchy/apple-glass-light) themes.
 
-![Apple Glass, the aquarium and the bar on Omarchy](docs/desktop.png)
+![Apple Glass, the aquarium and the bar on Omarchy](docs-desktop.png)
 
 ## hardware/ — Apple Silicon specific
 
 | Tool | What it does |
 | --- | --- |
-| `omarchy-als` | Ambient-light auto brightness for panel and keyboard backlight; learns your preferred offset from manual brightness key presses. |
-| `omarchy-battery-limit` | Toggle the battery charge ceiling between 80% (kind to the cells) and 100% (travel mode). Needs the udev rule below for rootless operation. |
+| `macarchy-als` | Ambient-light auto brightness for panel and keyboard backlight; learns your preferred offset from manual brightness key presses. |
+| `macarchy-battery-limit` | Toggle the battery charge ceiling between 80% (kind to the cells) and 100% (travel mode). Needs the udev rule below for rootless operation. |
 
 `udev/90-battery-charge-limit.rules` caps charging at 80% at boot and lets
 the `wheel` group flip the thresholds without root.
@@ -31,15 +41,15 @@ Installed as `/etc/libinput/local-overrides.quirks`; applies at next login.
 
 | Tool | What it does |
 | --- | --- |
-| `omarchy-dock` | macOS-style autohiding dock (nwg-dock) with a hotspot reveal. |
-| `omarchy-dock-theme` | Regenerates the dock stylesheet from the current Omarchy theme; installed as a `theme-set` hook so the dock follows theme changes. |
-| `omarchy-pinch` | Four-finger pinch gestures from libinput (Hyprland only handles swipes). |
-| `omarchy-zoom` | macOS-style screen magnifier on Hyprland's cursor zoom (`Ctrl` + scroll). |
-| `omarchy-auto-appearance` | Switches between the Apple Glass and Apple Glass Light themes at sunrise and sunset (or on a fixed schedule), like macOS's "Auto" appearance. Driven by a systemd user timer; "Auto" is on exactly when that timer is enabled, and the Control Center's Affichage page flips it. An existing conf without `MODE` now follows the sun; add `MODE=schedule` to keep a fixed `LIGHT_FROM`/`LIGHT_UNTIL` window. |
-| `omarchy-sun` | Prints today's sunrise and sunset for the shared location (`~/.config/omarchy/dynamic-wallpaper.json`). |
-| `omarchy-bar-contrast` | Picks the transparent bar's text colour from a live capture of the bar strip (Omarchy's own picker samples the wallpaper file and cannot see the aquarium above it), and writes it to `~/.config/omarchy/shell.toml`. Systemd timer, a `theme-set` hook, and an `omarchy-aquarium` hook — toggling the tank repaints the very screen it samples. |
-| `omarchy-locate` | Detects the machine's location (ip-api.com) and stores it in the shared location file, for the aquarium, the dynamic wallpaper and the auto appearance alike. |
-| `omarchy-gtk-settings` | Keeps GTK's `settings.ini` in step with the current Omarchy theme for apps that ignore gsettings. |
+| `macarchy-dock` | macOS-style autohiding dock (nwg-dock) with a hotspot reveal. |
+| `macarchy-dock-theme` | Regenerates the dock stylesheet from the current Omarchy theme; installed as a `theme-set` hook so the dock follows theme changes. |
+| `macarchy-pinch` | Four-finger pinch gestures from libinput (Hyprland only handles swipes). |
+| `macarchy-zoom` | macOS-style screen magnifier on Hyprland's cursor zoom (`Ctrl` + scroll). |
+| `macarchy-auto-appearance` | Switches between the Apple Glass and Apple Glass Light themes at sunrise and sunset (or on a fixed schedule), like macOS's "Auto" appearance. Driven by a systemd user timer; "Auto" is on exactly when that timer is enabled, and the Control Center's Affichage page flips it. An existing conf without `MODE` now follows the sun; add `MODE=schedule` to keep a fixed `LIGHT_FROM`/`LIGHT_UNTIL` window. |
+| `macarchy-sun` | Prints today's sunrise and sunset for the shared location (`~/.config/omarchy/dynamic-wallpaper.json`). |
+| `macarchy-bar-contrast` | Picks the transparent bar's text colour from a live capture of the bar strip (Omarchy's own picker samples the wallpaper file and cannot see the aquarium above it), and writes it to `~/.config/omarchy/shell.toml`. Systemd timer, a `theme-set` hook, and an `omarchy-aquarium` hook — toggling the tank repaints the very screen it samples. |
+| `macarchy-locate` | Detects the machine's location (ip-api.com) and stores it in the shared location file, for the aquarium, the dynamic wallpaper and the auto appearance alike. |
+| `macarchy-gtk-settings` | Keeps GTK's `settings.ini` in step with the current Omarchy theme for apps that ignore gsettings. |
 
 ## keys/ — the Cmd key, done the macOS way
 

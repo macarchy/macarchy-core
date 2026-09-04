@@ -1,18 +1,19 @@
-# omarchy-dfr — Touch Bar layouts.
+# macarchy-touchbar — Touch Bar layouts.
 #
 # Saved changes apply immediately; the daemon watches this file.
-# Inspect what's live with:  omarchy-dfr status
+# Inspect what's live with:  macarchy-touchbar status
 #
 # A button acts in one of four ways:
 #
 #   key  = "VolumeUp"           tiny-dfr emits that key code itself. Costs no
 #   key  = ["LeftAlt", "Left"]  action slot and works even outside Hyprland.
-#                               NOTE: adding a key code that isn't already in
-#                               use needs `omarchy-dfr provision` (root), since
-#                               tiny-dfr fixes its key capabilities at startup.
+#                               NOTE: adding a key code that isn't already
+#                               in use needs `macarchy-touchbar provision`
+#                               (root), since tiny-dfr fixes its key
+#                               capabilities at startup.
 #
 #   run  = "some command"       bound to a spare F13–F24 code that Hyprland
-#                               routes back to `omarchy-dfr press N`.
+#                               routes back to `macarchy-touchbar press N`.
 #
 #   page = "media"             expands the bar into [pages.media] — the macOS
 #                               Control Strip idiom.
@@ -160,7 +161,7 @@ run = "omarchy toggle nightlight"
 
 [buttons.autobright]
 icon = "brightness_auto"
-run = "omarchy-als toggle"
+run = "macarchy-als toggle"
 
 
 # ─── Omarchy essentials ─────────────────────────────────────────────────────
@@ -187,7 +188,7 @@ run = "omarchy system lock"
 
 [buttons.batlimit]
 icon = "battery_limit"
-run = "omarchy-battery-limit toggle"
+run = "macarchy-battery-limit toggle"
 
 
 # ─── app shortcuts (sent straight to the focused app) ───────────────────────

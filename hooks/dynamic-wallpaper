@@ -1,11 +1,11 @@
 #!/bin/bash
 # theme-set hook: pull the time-of-day wallpaper forward.
 #
-# macos-dynamic-wallpaper refuses to touch the background while a theme it does
+# macarchy-dynamic-wallpaper refuses to touch the background while a theme it does
 # not manage is active, so after an appearance flip it does nothing until its
 # own timer next fires -- leaving the dark theme wearing the day wallpaper for
 # up to five minutes, and the bar sampling that bright ground. Applying it here
-# means the ground is final before omarchy-bar-contrast (which sorts after this
+# means the ground is final before macarchy-bar-contrast (which sorts after this
 # hook) reads it. No-op when the tool isn't installed or the image is unchanged.
-command -v macos-dynamic-wallpaper >/dev/null || exit 0
-exec macos-dynamic-wallpaper
+command -v macarchy-dynamic-wallpaper >/dev/null || exit 0
+exec macarchy-dynamic-wallpaper

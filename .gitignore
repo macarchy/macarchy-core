@@ -1,3 +1,3 @@
-# Build output from the python daemons (omarchy-dfr, omarchy-als).
+# Build output from the python daemons (macarchy-touchbar, macarchy-als).
 __pycache__/
 *.pyc

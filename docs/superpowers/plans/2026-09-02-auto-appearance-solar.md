@@ -4,7 +4,7 @@
 
 **Goal:** Add an « Auto » appearance mode to the Control Center's Affichage module that switches Apple Glass ↔ Apple Glass Light at sunrise/sunset for the machine's shared location.
 
-**Architecture:** A new `omarchy-sun` CLI (Python, NOAA equation) answers "when does the sun rise/set here" from the lat/lon already in `~/.config/omarchy/dynamic-wallpaper.json`. The existing bash `omarchy-auto-appearance` gains `MODE=solar` (asks `omarchy-sun`) and a `status` line; "Auto" is defined as *its systemd user timer is enabled*, nothing else. The QML module reads `status`, offers a three-way pill, and a « Détecter » button runs a new `omarchy-locate` script (ip-api.com → jq → the JSON).
+**Architecture:** A new `macarchy-sun` CLI (Python, NOAA equation) answers "when does the sun rise/set here" from the lat/lon already in `~/.config/omarchy/dynamic-wallpaper.json`. The existing bash `macarchy-auto-appearance` gains `MODE=solar` (asks `macarchy-sun`) and a `status` line; "Auto" is defined as *its systemd user timer is enabled*, nothing else. The QML module reads `status`, offers a three-way pill, and a « Détecter » button runs a new `macarchy-locate` script (ip-api.com → jq → the JSON).
 
 **Tech Stack:** bash, Python 3 (stdlib only, `unittest`), systemd user timers, jq, curl, QML/Quickshell (`qs.Ui`, `qs.Commons`), qmllint.
 
@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Repo: `~/Work/omarchy-mac`. Scripts live in `style/`, are installed to `~/.local/bin` by `install.sh` (`install -m755 hardware/* style/* "$BIN"/`). New scripts get no extension, `#!` line, mode 755.
+- Repo: `~/Work/macarchy-core`. Scripts live in `style/`, are installed to `~/.local/bin` by `install.sh` (`install -m755 hardware/* style/* "$BIN"/`). New scripts get no extension, `#!` line, mode 755.
 - All user-facing text in the Control Center is **French**, sentences end with a period, spec wording copied verbatim.
 - Theme names: dark = `apple-glass` / « Apple Glass », light = `apple-glass-light` / « Apple Glass Light ». Slug files: `~/.local/state/omarchy/current/theme.name`.
 - Location file: `~/.config/omarchy/dynamic-wallpaper.json`, keys `latitude`, `longitude` (numbers). Never touch its other keys.
@@ -30,13 +30,13 @@
 
 | File | Responsibility |
 | --- | --- |
-| `style/omarchy-sun` (new) | Pure solar math + CLI: sunrise/sunset for a lat/lon/day. |
-| `tests/test_omarchy_sun.py` (new) | unittest for the math and the CLI. |
-| `style/omarchy-auto-appearance` (modify) | Decide which theme the clock wants (`MODE=solar|schedule`), apply it, `status`. |
-| `tests/test_auto_appearance.sh` (new) | Bash test with fake `omarchy-sun`, `omarchy`, `systemctl` on PATH. |
-| `style/omarchy-locate` (new) | IP geolocation → `dynamic-wallpaper.json`. |
-| `tests/test_omarchy_locate.sh` (new) | Bash test with a fake `curl`. |
-| `systemd/omarchy-auto-appearance.timer` (modify) | 5-minute cadence. |
+| `style/macarchy-sun` (new) | Pure solar math + CLI: sunrise/sunset for a lat/lon/day. |
+| `tests/test_macarchy_sun.py` (new) | unittest for the math and the CLI. |
+| `style/macarchy-auto-appearance` (modify) | Decide which theme the clock wants (`MODE=solar|schedule`), apply it, `status`. |
+| `tests/test_auto_appearance.sh` (new) | Bash test with fake `macarchy-sun`, `omarchy`, `systemctl` on PATH. |
+| `style/macarchy-locate` (new) | IP geolocation → `dynamic-wallpaper.json`. |
+| `tests/test_macarchy_locate.sh` (new) | Bash test with a fake `curl`. |
+| `systemd/macarchy-auto-appearance.timer` (modify) | 5-minute cadence. |
 | `examples/omarchy.auto-appearance.conf` (new) | Commented default conf, installed to `~/.config/omarchy/auto-appearance.conf` if absent. |
 | `install.sh` (modify) | Enable the timer only on first install. |
 | `shell-plugins/macarchy.control-center/modules/Display.qml` (modify) | Three-way pill, status sentence, position row, home summary. |
@@ -45,20 +45,20 @@
 
 ---
 
-### Task 1: `omarchy-sun` — solar math and CLI
+### Task 1: `macarchy-sun` — solar math and CLI
 
 **Files:**
-- Create: `style/omarchy-sun`
-- Test: `tests/test_omarchy_sun.py`
+- Create: `style/macarchy-sun`
+- Test: `tests/test_macarchy_sun.py`
 
 **Interfaces:**
 - Produces (Python, inside the script): `solar_pair(lat: float, lon: float, when_utc: datetime, altitude: float) -> tuple[datetime, datetime] | "up" | "down"`, `sun_for_day(lat, lon, day: date) -> dict` with keys `state` (`"normal"|"up"|"down"`), `sunrise`, `sunset` (`"HH:MM"` local or `None`), `latitude`, `longitude`; `load_location(path: Path) -> tuple[float, float]` raising `LocationError`.
-- Produces (CLI): `omarchy-sun [--lat N --lon N] [--date YYYY-MM-DD] [--json]`. Text output `sunrise HH:MM` / `sunset  HH:MM` lines (omitted when absent). Exit 2 when the location cannot be read.
+- Produces (CLI): `macarchy-sun [--lat N --lon N] [--date YYYY-MM-DD] [--json]`. Text output `sunrise HH:MM` / `sunset  HH:MM` lines (omitted when absent). Exit 2 when the location cannot be read.
 
 - [ ] **Step 1: Write the failing tests**
 
 ```python
-# tests/test_omarchy_sun.py
+# tests/test_macarchy_sun.py
 import importlib.machinery
 import importlib.util
 import json
@@ -72,12 +72,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPT = ROOT / "style" / "omarchy-sun"
+SCRIPT = ROOT / "style" / "macarchy-sun"
 
 
 def load_script():
-    loader = importlib.machinery.SourceFileLoader("omarchy_sun", str(SCRIPT))
-    spec = importlib.util.spec_from_loader("omarchy_sun", loader)
+    loader = importlib.machinery.SourceFileLoader("macarchy_sun", str(SCRIPT))
+    spec = importlib.util.spec_from_loader("macarchy_sun", loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
     return module
@@ -206,10 +206,10 @@ if __name__ == "__main__":
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cd ~/Work/omarchy-mac && python3 -m unittest discover -s tests -v 2>&1 | tail -5`
-Expected: errors — `FileNotFoundError` on `style/omarchy-sun`.
+Run: `cd ~/Work/macarchy-core && python3 -m unittest discover -s tests -v 2>&1 | tail -5`
+Expected: errors — `FileNotFoundError` on `style/macarchy-sun`.
 
-- [ ] **Step 3: Write `style/omarchy-sun`**
+- [ ] **Step 3: Write `style/macarchy-sun`**
 
 ```python
 #!/usr/bin/env python3
@@ -218,9 +218,9 @@ Expected: errors — `FileNotFoundError` on `style/omarchy-sun`.
 The location is the one shared by the aquarium and the dynamic wallpaper:
 latitude/longitude in ~/.config/omarchy/dynamic-wallpaper.json. The math is
 the NOAA sunrise equation (good to about a minute), the same one
-macos-dynamic-wallpaper carries.
+macarchy-dynamic-wallpaper carries.
 
-    omarchy-sun [--lat N --lon N] [--date YYYY-MM-DD] [--json]
+    macarchy-sun [--lat N --lon N] [--date YYYY-MM-DD] [--json]
 
 Text output is two lines, `sunrise HH:MM` and `sunset  HH:MM`, in local time.
 When the sun never crosses the horizon that day both lines are omitted and the
@@ -320,7 +320,7 @@ def main(argv=None):
         try:
             lat, lon = load_location()
         except LocationError as exc:
-            print(f"omarchy-sun: {exc}", file=sys.stderr)
+            print(f"macarchy-sun: {exc}", file=sys.stderr)
             return 2
 
     result = sun_for_day(lat, lon, args.date or date.today())
@@ -337,51 +337,51 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-Then: `chmod 755 style/omarchy-sun`.
+Then: `chmod 755 style/macarchy-sun`.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `cd ~/Work/omarchy-mac && python3 -m unittest discover -s tests -v 2>&1 | tail -5`
+Run: `cd ~/Work/macarchy-core && python3 -m unittest discover -s tests -v 2>&1 | tail -5`
 Expected: `OK` with 14 tests.
 
 - [ ] **Step 5: Sanity-run for today**
 
-Run: `TZ=Europe/Brussels style/omarchy-sun --lat 50.46 --lon 4.45`
+Run: `TZ=Europe/Brussels style/macarchy-sun --lat 50.46 --lon 4.45`
 Expected: two lines, sunrise around 06:57 and sunset around 20:26 for 2026-09-02.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd ~/Work/omarchy-mac && git add style/omarchy-sun tests/test_omarchy_sun.py && git commit -m "Add omarchy-sun: sunrise and sunset for the shared location"
+cd ~/Work/macarchy-core && git add style/macarchy-sun tests/test_macarchy_sun.py && git commit -m "Add macarchy-sun: sunrise and sunset for the shared location"
 ```
 
 ---
 
-### Task 2: `omarchy-auto-appearance` — solar mode, `status`, explicit failure
+### Task 2: `macarchy-auto-appearance` — solar mode, `status`, explicit failure
 
 **Files:**
-- Modify: `style/omarchy-auto-appearance` (whole file rewritten below)
+- Modify: `style/macarchy-auto-appearance` (whole file rewritten below)
 - Test: `tests/test_auto_appearance.sh`
 
 **Interfaces:**
-- Consumes: `omarchy-sun --json` from Task 1 (`state`, `sunrise`, `sunset`).
+- Consumes: `macarchy-sun --json` from Task 1 (`state`, `sunrise`, `sunset`).
 - Produces: conf keys `MODE` (`solar` default | `schedule`), `LIGHT_FROM`, `LIGHT_UNTIL`; env `AUTO_APPEARANCE_NOW=HH:MM` overrides the clock (tests only); subcommand `status` printing ONE line of `key=value` pairs separated by spaces:
   - solar: `mode=solar enabled=yes|no want=dark|light sunrise=HH:MM sunset=HH:MM` (times absent when state is up/down).
   - schedule: `mode=schedule enabled=yes|no want=dark|light from=HH:MM until=HH:MM`.
   - sun failure (solar): `mode=solar enabled=yes|no error=sun`, exit 0.
-  - `enabled` comes from `systemctl --user is-enabled omarchy-auto-appearance.timer` (`yes` iff it prints `enabled`).
+  - `enabled` comes from `systemctl --user is-enabled macarchy-auto-appearance.timer` (`yes` iff it prints `enabled`).
 - Default action (no argument) applies the theme; on sun failure it prints to stderr and exits 1 without changing anything.
 
 - [ ] **Step 1: Write the failing test**
 
 ```bash
 #!/bin/bash
-# tests/test_auto_appearance.sh — runs style/omarchy-auto-appearance against
-# fake omarchy-sun / omarchy / systemctl binaries and an injected clock.
+# tests/test_auto_appearance.sh — runs style/macarchy-auto-appearance against
+# fake macarchy-sun / omarchy / systemctl binaries and an injected clock.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-SCRIPT="$PWD/style/omarchy-auto-appearance"
+SCRIPT="$PWD/style/macarchy-auto-appearance"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config"
 mkdir -p "$HOME/.local/state/omarchy/current" "$XDG_CONFIG_HOME/omarchy" "$TMP/bin"
@@ -399,10 +399,10 @@ echo "systemctl $*" >> "$FAKE_LOG"
 echo "${FAKE_ENABLED:-disabled}"
 [[ ${FAKE_ENABLED:-disabled} == enabled ]]
 EOF
-cat > "$TMP/bin/omarchy-sun" <<'EOF'
+cat > "$TMP/bin/macarchy-sun" <<'EOF'
 #!/bin/bash
-echo "omarchy-sun $*" >> "$FAKE_LOG"
-[[ -n ${FAKE_SUN_FAIL:-} ]] && { echo "omarchy-sun: no location" >&2; exit 2; }
+echo "macarchy-sun $*" >> "$FAKE_LOG"
+[[ -n ${FAKE_SUN_FAIL:-} ]] && { echo "macarchy-sun: no location" >&2; exit 2; }
 if [[ -n ${FAKE_SUN:-} ]]; then echo "$FAKE_SUN"; else echo '{"state":"normal","sunrise":"06:57","sunset":"20:26"}'; fi
 EOF
 chmod +x "$TMP/bin"/*
@@ -448,13 +448,13 @@ reset; theme apple-glass; export FAKE_SUN_FAIL=1
 err=$(AUTO_APPEARANCE_NOW=12:00 "$SCRIPT" 2>&1); rc=$?
 check "sun failure exits 1" [ "$rc" -eq 1 ]
 check "sun failure changes nothing" not_called 'omarchy theme set'
-check "sun failure says so" grep -q 'omarchy-sun' <<<"$err"
+check "sun failure says so" grep -q 'macarchy-sun' <<<"$err"
 
 # --- schedule mode -----------------------------------------------------------
 reset; theme apple-glass; conf 'MODE=schedule' 'LIGHT_FROM=07:00' 'LIGHT_UNTIL=20:00'
 AUTO_APPEARANCE_NOW=12:00 "$SCRIPT"
 check "schedule: daytime switches to light" called 'omarchy theme set Apple Glass Light'
-check "schedule: never asks the sun" not_called 'omarchy-sun'
+check "schedule: never asks the sun" not_called 'macarchy-sun'
 
 reset; theme apple-glass-light; conf 'MODE=schedule' 'LIGHT_FROM=07:00' 'LIGHT_UNTIL=20:00'
 AUTO_APPEARANCE_NOW=20:00 "$SCRIPT"
@@ -488,22 +488,22 @@ echo; [[ $fails -eq 0 ]] && echo "all passed" || { echo "$fails failed"; exit 1;
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `cd ~/Work/omarchy-mac && bash tests/test_auto_appearance.sh`
+Run: `cd ~/Work/macarchy-core && bash tests/test_auto_appearance.sh`
 Expected: several `FAIL` lines (solar cases, status cases); exit 1.
 
-- [ ] **Step 3: Rewrite `style/omarchy-auto-appearance`**
+- [ ] **Step 3: Rewrite `style/macarchy-auto-appearance`**
 
 ```bash
 #!/bin/bash
 # Switch between Apple Glass and Apple Glass Light, the way macOS's "Auto"
 # appearance setting does — by default at sunrise and sunset for the location
-# shared with the aquarium and the dynamic wallpaper (omarchy-sun), or on a
+# shared with the aquarium and the dynamic wallpaper (macarchy-sun), or on a
 # fixed schedule (MODE=schedule).
 #
-#   omarchy-auto-appearance          apply the theme the clock wants
-#   omarchy-auto-appearance status   one line: mode= enabled= want= …
+#   macarchy-auto-appearance          apply the theme the clock wants
+#   macarchy-auto-appearance status   one line: mode= enabled= want= …
 #
-# "Auto" is on exactly when omarchy-auto-appearance.timer is enabled; nothing
+# "Auto" is on exactly when macarchy-auto-appearance.timer is enabled; nothing
 # else stores that state.
 #
 # Two deliberate guards:
@@ -525,7 +525,7 @@ LIGHT_FROM=07:00
 LIGHT_UNTIL=20:00
 DARK_THEME="Apple Glass"
 LIGHT_THEME="Apple Glass Light"
-TIMER=omarchy-auto-appearance.timer
+TIMER=macarchy-auto-appearance.timer
 
 # shellcheck source=/dev/null
 [[ -r $CONF ]] && source "$CONF"
@@ -553,7 +553,7 @@ if [[ $MODE == schedule ]]; then
   fi
   extra="from=$LIGHT_FROM until=$LIGHT_UNTIL"
 else
-  if ! sun=$(omarchy-sun --json 2>/dev/null) || [[ -z $sun ]]; then
+  if ! sun=$(macarchy-sun --json 2>/dev/null) || [[ -z $sun ]]; then
     want=""
   else
     state=$(jq -r '.state' <<<"$sun")
@@ -584,7 +584,7 @@ if [[ $action == status ]]; then
 fi
 
 if [[ -z $want ]]; then
-  echo "omarchy-auto-appearance: omarchy-sun could not compute today's sun; theme left alone" >&2
+  echo "macarchy-auto-appearance: macarchy-sun could not compute today's sun; theme left alone" >&2
   exit 1
 fi
 
@@ -605,18 +605,18 @@ exec omarchy theme set "$want_theme"
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `cd ~/Work/omarchy-mac && bash tests/test_auto_appearance.sh`
+Run: `cd ~/Work/macarchy-core && bash tests/test_auto_appearance.sh`
 Expected: every line `ok`, then `all passed`, exit 0.
 
 - [ ] **Step 5: Check the real thing on this box, without switching anything**
 
-Run: `style/omarchy-auto-appearance status`
+Run: `style/macarchy-auto-appearance status`
 Expected: `mode=solar enabled=no want=… sunrise=… sunset=…` (Paris coordinates for now — fine).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd ~/Work/omarchy-mac && git add style/omarchy-auto-appearance tests/test_auto_appearance.sh && git commit -m "Auto appearance: follow the sun by default, add status"
+cd ~/Work/macarchy-core && git add style/macarchy-auto-appearance tests/test_auto_appearance.sh && git commit -m "Auto appearance: follow the sun by default, add status"
 ```
 
 ---
@@ -624,7 +624,7 @@ cd ~/Work/omarchy-mac && git add style/omarchy-auto-appearance tests/test_auto_a
 ### Task 3: Packaging — timer cadence, example conf, first-install-only enable
 
 **Files:**
-- Modify: `systemd/omarchy-auto-appearance.timer`
+- Modify: `systemd/macarchy-auto-appearance.timer`
 - Create: `examples/omarchy.auto-appearance.conf`
 - Modify: `install.sh:14-17`
 
@@ -634,7 +634,7 @@ cd ~/Work/omarchy-mac && git add style/omarchy-auto-appearance tests/test_auto_a
 
 - [ ] **Step 1: Timer at 5 minutes**
 
-Replace the `[Timer]` block of `systemd/omarchy-auto-appearance.timer` with:
+Replace the `[Timer]` block of `systemd/macarchy-auto-appearance.timer` with:
 
 ```ini
 [Timer]
@@ -652,10 +652,10 @@ Persistent=true
 Create `examples/omarchy.auto-appearance.conf`:
 
 ```bash
-# omarchy-auto-appearance — when the light theme is active.
+# macarchy-auto-appearance — when the light theme is active.
 #
 # MODE=solar     light between sunrise and sunset at the location in
-#                ~/.config/omarchy/dynamic-wallpaper.json (omarchy-locate
+#                ~/.config/omarchy/dynamic-wallpaper.json (macarchy-locate
 #                fills it in). This is the default.
 # MODE=schedule  light between LIGHT_FROM and LIGHT_UNTIL, dark otherwise.
 #                The window may wrap past midnight.
@@ -670,9 +670,9 @@ Replace lines 14–17 of `install.sh`:
 
 ```bash
 mkdir -p "$HOME/.config/systemd/user"
-install -m644 systemd/omarchy-auto-appearance.{service,timer} "$HOME/.config/systemd/user/"
+install -m644 systemd/macarchy-auto-appearance.{service,timer} "$HOME/.config/systemd/user/"
 systemctl --user daemon-reload
-systemctl --user enable --now omarchy-auto-appearance.timer
+systemctl --user enable --now macarchy-auto-appearance.timer
 ```
 
 with:
@@ -683,11 +683,11 @@ mkdir -p "$HOME/.config/systemd/user"
 # Center flips it. Only a first install turns it on; a reinstall keeps the
 # user's choice.
 first_install=1
-[[ -e "$HOME/.config/systemd/user/omarchy-auto-appearance.timer" ]] && first_install=0
-install -m644 systemd/omarchy-auto-appearance.{service,timer} "$HOME/.config/systemd/user/"
+[[ -e "$HOME/.config/systemd/user/macarchy-auto-appearance.timer" ]] && first_install=0
+install -m644 systemd/macarchy-auto-appearance.{service,timer} "$HOME/.config/systemd/user/"
 systemctl --user daemon-reload
 if (( first_install )); then
-    systemctl --user enable --now omarchy-auto-appearance.timer
+    systemctl --user enable --now macarchy-auto-appearance.timer
 fi
 ```
 
@@ -695,36 +695,36 @@ fi
 
 - [ ] **Step 4: Syntax-check and dry-read**
 
-Run: `bash -n install.sh && systemd-analyze --user verify systemd/omarchy-auto-appearance.timer 2>&1 | grep -v 'Unit .* is not loaded' ; echo "verify rc=$?"`
+Run: `bash -n install.sh && systemd-analyze --user verify systemd/macarchy-auto-appearance.timer 2>&1 | grep -v 'Unit .* is not loaded' ; echo "verify rc=$?"`
 Expected: no output from `bash -n`; verify prints nothing relevant (a missing-service warning is fine because the service file is referenced by a relative name).
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd ~/Work/omarchy-mac && git add systemd/omarchy-auto-appearance.timer examples/omarchy.auto-appearance.conf install.sh && git commit -m "Auto appearance: 5-minute timer, example conf, enable on first install only"
+cd ~/Work/macarchy-core && git add systemd/macarchy-auto-appearance.timer examples/omarchy.auto-appearance.conf install.sh && git commit -m "Auto appearance: 5-minute timer, example conf, enable on first install only"
 ```
 
 ---
 
-### Task 4: `omarchy-locate` — IP geolocation into the shared JSON
+### Task 4: `macarchy-locate` — IP geolocation into the shared JSON
 
 **Files:**
-- Create: `style/omarchy-locate`
-- Test: `tests/test_omarchy_locate.sh`
+- Create: `style/macarchy-locate`
+- Test: `tests/test_macarchy_locate.sh`
 
 **Interfaces:**
-- Produces: `omarchy-locate` — on success prints `<lat> <lon> <city>` on one line, rewrites `latitude`/`longitude` in `${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/dynamic-wallpaper.json` (other keys intact, atomic), then runs `omarchy-auto-appearance` (ignoring its exit code), exit 0. On failure (curl error, `status != success`, no JSON file to update) prints to stderr, writes nothing, exit 1.
+- Produces: `macarchy-locate` — on success prints `<lat> <lon> <city>` on one line, rewrites `latitude`/`longitude` in `${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/dynamic-wallpaper.json` (other keys intact, atomic), then runs `macarchy-auto-appearance` (ignoring its exit code), exit 0. On failure (curl error, `status != success`, no JSON file to update) prints to stderr, writes nothing, exit 1.
 
 - [ ] **Step 1: Write the failing test**
 
 ```bash
 #!/bin/bash
-# tests/test_omarchy_locate.sh — omarchy-locate against a fake curl and a fake
-# omarchy-auto-appearance.
+# tests/test_macarchy_locate.sh — macarchy-locate against a fake curl and a fake
+# macarchy-auto-appearance.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-SCRIPT="$PWD/style/omarchy-locate"
+SCRIPT="$PWD/style/macarchy-locate"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config"
 mkdir -p "$XDG_CONFIG_HOME/omarchy" "$TMP/bin"
@@ -738,9 +738,9 @@ echo "curl $*" >> "$FAKE_LOG"
 [[ -n ${FAKE_CURL_FAIL:-} ]] && exit 7
 if [[ -n ${FAKE_CURL:-} ]]; then echo "$FAKE_CURL"; else echo '{"status":"success","lat":50.4108,"lon":4.4446,"city":"Charleroi"}'; fi
 EOF
-cat > "$TMP/bin/omarchy-auto-appearance" <<'EOF'
+cat > "$TMP/bin/macarchy-auto-appearance" <<'EOF'
 #!/bin/bash
-echo "omarchy-auto-appearance $*" >> "$FAKE_LOG"
+echo "macarchy-auto-appearance $*" >> "$FAKE_LOG"
 EOF
 chmod +x "$TMP/bin"/*
 
@@ -757,7 +757,7 @@ check "latitude written" [ "$(jq -r .latitude "$JSON")" = "50.4108" ]
 check "longitude written" [ "$(jq -r .longitude "$JSON")" = "4.4446" ]
 check "other keys intact" [ "$(jq -c '.sets' "$JSON")" = '{"tahoe-beach":{"day":"a.jpg"}}' ]
 check "theme key intact" [ "$(jq -r .theme "$JSON")" = "apple-glass" ]
-check "applies the theme afterwards" grep -qx 'omarchy-auto-appearance ' "$FAKE_LOG"
+check "applies the theme afterwards" grep -qx 'macarchy-auto-appearance ' "$FAKE_LOG"
 check "asks ip-api over http" grep -q 'ip-api.com/json' "$FAKE_LOG"
 
 reset; export FAKE_CURL_FAIL=1
@@ -765,7 +765,7 @@ err=$("$SCRIPT" 2>&1 >/dev/null); rc=$?
 check "curl failure exits 1" [ "$rc" -eq 1 ]
 check "curl failure leaves the file" [ "$(jq -r .latitude "$JSON")" = "48.8566" ]
 check "curl failure explains" grep -qi 'hors ligne\|offline\|curl' <<<"$err"
-check "curl failure does not apply" ! grep -q 'omarchy-auto-appearance' "$FAKE_LOG"
+check "curl failure does not apply" ! grep -q 'macarchy-auto-appearance' "$FAKE_LOG"
 
 reset; export FAKE_CURL='{"status":"fail","message":"private range"}'
 "$SCRIPT" 2>/dev/null; rc=$?
@@ -782,10 +782,10 @@ echo; [[ $fails -eq 0 ]] && echo "all passed" || { echo "$fails failed"; exit 1;
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `cd ~/Work/omarchy-mac && bash tests/test_omarchy_locate.sh`
+Run: `cd ~/Work/macarchy-core && bash tests/test_macarchy_locate.sh`
 Expected: `FAIL` lines (script not found), exit 1.
 
-- [ ] **Step 3: Write `style/omarchy-locate`**
+- [ ] **Step 3: Write `style/macarchy-locate`**
 
 ```bash
 #!/bin/bash
@@ -805,18 +805,18 @@ JSON="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/dynamic-wallpaper.json"
 URL='http://ip-api.com/json/?fields=status,message,lat,lon,city'
 
 if [[ ! -f $JSON ]]; then
-  echo "omarchy-locate: $JSON is missing; nothing to update" >&2
+  echo "macarchy-locate: $JSON is missing; nothing to update" >&2
   exit 1
 fi
 
 if ! reply=$(curl -fsS --max-time 5 "$URL"); then
-  echo "omarchy-locate: détection impossible — hors ligne ? (curl a échoué)" >&2
+  echo "macarchy-locate: détection impossible — hors ligne ? (curl a échoué)" >&2
   exit 1
 fi
 
 status=$(jq -r '.status // empty' <<<"$reply" 2>/dev/null)
 if [[ $status != success ]]; then
-  echo "omarchy-locate: ip-api.com refused: $(jq -r '.message // "unexpected reply"' <<<"$reply" 2>/dev/null)" >&2
+  echo "macarchy-locate: ip-api.com refused: $(jq -r '.message // "unexpected reply"' <<<"$reply" 2>/dev/null)" >&2
   exit 1
 fi
 
@@ -827,27 +827,27 @@ city=$(jq -r '.city // ""' <<<"$reply")
 tmp=$(mktemp "${JSON}.XXXXXX")
 if ! jq --argjson lat "$lat" --argjson lon "$lon" '.latitude = $lat | .longitude = $lon' "$JSON" > "$tmp"; then
   rm -f "$tmp"
-  echo "omarchy-locate: could not rewrite $JSON" >&2
+  echo "macarchy-locate: could not rewrite $JSON" >&2
   exit 1
 fi
 mv -f "$tmp" "$JSON"
 
 echo "$lat $lon $city"
-omarchy-auto-appearance || true
+macarchy-auto-appearance || true
 exit 0
 ```
 
-Then `chmod 755 style/omarchy-locate`.
+Then `chmod 755 style/macarchy-locate`.
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `cd ~/Work/omarchy-mac && bash tests/test_omarchy_locate.sh`
+Run: `cd ~/Work/macarchy-core && bash tests/test_macarchy_locate.sh`
 Expected: all `ok`, `all passed`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd ~/Work/omarchy-mac && git add style/omarchy-locate tests/test_omarchy_locate.sh && git commit -m "Add omarchy-locate: IP geolocation into the shared location"
+cd ~/Work/macarchy-core && git add style/macarchy-locate tests/test_macarchy_locate.sh && git commit -m "Add macarchy-locate: IP geolocation into the shared location"
 ```
 
 ---
@@ -858,7 +858,7 @@ cd ~/Work/omarchy-mac && git add style/omarchy-locate tests/test_omarchy_locate.
 - Modify: `shell-plugins/macarchy.control-center/modules/Display.qml`
 
 **Interfaces:**
-- Consumes: `omarchy-auto-appearance status` line (Task 2), `omarchy-locate` (Task 4), `jq`.
+- Consumes: `macarchy-auto-appearance status` line (Task 2), `macarchy-locate` (Task 4), `jq`.
 - Produces: module `summary` string per spec; no new contract properties.
 
 - [ ] **Step 1: Replace the summary and add the appearance state**
@@ -883,7 +883,7 @@ Directly after `readonly property bool lightMode: themeName === "apple-glass-lig
 
 ```qml
   // ---- automatic appearance: "Auto" means the systemd timer is enabled,
-  // read back from `omarchy-auto-appearance status`. Nothing else stores it.
+  // read back from `macarchy-auto-appearance status`. Nothing else stores it.
   property bool autoOn: false
   property string autoMode: "solar"      // "solar" | "schedule"
   property string sunrise: ""
@@ -939,12 +939,12 @@ with
     if (value === "auto") {
       autoOn = true
       Quickshell.execDetached(["bash", "-c",
-        "systemctl --user enable --now omarchy-auto-appearance.timer; exec omarchy-auto-appearance"])
+        "systemctl --user enable --now macarchy-auto-appearance.timer; exec macarchy-auto-appearance"])
     } else {
       autoOn = false
       themeName = value === "light" ? "apple-glass-light" : "apple-glass"
       Quickshell.execDetached(["bash", "-c",
-        "systemctl --user disable --now omarchy-auto-appearance.timer; exec omarchy-theme-set " + themeName])
+        "systemctl --user disable --now macarchy-auto-appearance.timer; exec omarchy-theme-set " + themeName])
     }
     slowRecheck.restart()
   }
@@ -966,7 +966,7 @@ After the `themeProc` `Process`, add:
 ```qml
   Process {
     id: autoProc
-    command: ["omarchy-auto-appearance", "status"]
+    command: ["macarchy-auto-appearance", "status"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -1007,11 +1007,11 @@ After the `themeProc` `Process`, add:
 
   Process {
     id: locateProc
-    command: ["omarchy-locate"]
+    command: ["macarchy-locate"]
     onExited: function(exitCode) {
       mod.locating = false
       mod.locateFailed = exitCode !== 0
-      // omarchy-locate re-applies the theme; give omarchy-theme-set time.
+      // macarchy-locate re-applies the theme; give omarchy-theme-set time.
       mod.refresh()
       slowRecheck.restart()
     }
@@ -1081,7 +1081,7 @@ Run:
 ```bash
 S=/tmp/claude-1001/-home-phmatray-Work/8b7d644d-bf46-4063-b147-17bbba50a86f/scratchpad
 ln -sfn /usr/share/omarchy/shell "$S/qs"
-cd ~/Work/omarchy-mac/shell-plugins/macarchy.control-center
+cd ~/Work/macarchy-core/shell-plugins/macarchy.control-center
 /usr/lib/qt6/bin/qmllint -I "$S" modules/Display.qml 2>&1 | grep -v -E 'not found on type "QObject"|PanelWindow is not creatable'
 ```
 
@@ -1090,7 +1090,7 @@ Expected: no output (only the two noise classes were filtered). Fix anything els
 - [ ] **Step 6: Commit**
 
 ```bash
-cd ~/Work/omarchy-mac && git add shell-plugins/macarchy.control-center/modules/Display.qml && git commit -m "Control Center: Auto appearance follows the sun, with a Détecter button"
+cd ~/Work/macarchy-core && git add shell-plugins/macarchy.control-center/modules/Display.qml && git commit -m "Control Center: Auto appearance follows the sun, with a Détecter button"
 ```
 
 ---
@@ -1101,7 +1101,7 @@ cd ~/Work/omarchy-mac && git add shell-plugins/macarchy.control-center/modules/D
 - Modify: `shell-plugins/macarchy.control-center/BarWidget.qml:275-280`
 
 **Interfaces:**
-- Consumes: the timer name `omarchy-auto-appearance.timer`.
+- Consumes: the timer name `macarchy-auto-appearance.timer`.
 
 - [ ] **Step 1: Disable the timer before switching**
 
@@ -1126,7 +1126,7 @@ with
     var next = lightMode ? "apple-glass" : "apple-glass-light"
     themeName = next
     Quickshell.execDetached(["bash", "-c",
-      "systemctl --user disable --now omarchy-auto-appearance.timer; exec omarchy-theme-set " + next])
+      "systemctl --user disable --now macarchy-auto-appearance.timer; exec omarchy-theme-set " + next])
     slowRecheck.restart()
   }
 ```
@@ -1137,7 +1137,7 @@ Run:
 
 ```bash
 S=/tmp/claude-1001/-home-phmatray-Work/8b7d644d-bf46-4063-b147-17bbba50a86f/scratchpad
-cd ~/Work/omarchy-mac/shell-plugins/macarchy.control-center
+cd ~/Work/macarchy-core/shell-plugins/macarchy.control-center
 /usr/lib/qt6/bin/qmllint -I "$S" BarWidget.qml 2>&1 | grep -v -E 'not found on type "QObject"|PanelWindow is not creatable'
 ```
 
@@ -1146,7 +1146,7 @@ Expected: identical to `git stash; <same command>; git stash pop` — i.e. no ne
 - [ ] **Step 3: Commit**
 
 ```bash
-cd ~/Work/omarchy-mac && git add shell-plugins/macarchy.control-center/BarWidget.qml && git commit -m "Control Center: the Apparence tile leaves Auto mode"
+cd ~/Work/macarchy-core && git add shell-plugins/macarchy.control-center/BarWidget.qml && git commit -m "Control Center: the Apparence tile leaves Auto mode"
 ```
 
 ---
@@ -1162,30 +1162,30 @@ cd ~/Work/omarchy-mac && git add shell-plugins/macarchy.control-center/BarWidget
 Replace line 39 of `README.md` with three rows:
 
 ```markdown
-| `omarchy-auto-appearance` | Switches between the Apple Glass and Apple Glass Light themes at sunrise and sunset (or on a fixed schedule), like macOS's "Auto" appearance. Driven by a systemd user timer; "Auto" is on exactly when that timer is enabled, and the Control Center's Affichage page flips it. |
-| `omarchy-sun` | Prints today's sunrise and sunset for the shared location (`~/.config/omarchy/dynamic-wallpaper.json`). |
-| `omarchy-locate` | Detects the machine's location (ip-api.com) and stores it in the shared location file, for the aquarium, the dynamic wallpaper and the auto appearance alike. |
+| `macarchy-auto-appearance` | Switches between the Apple Glass and Apple Glass Light themes at sunrise and sunset (or on a fixed schedule), like macOS's "Auto" appearance. Driven by a systemd user timer; "Auto" is on exactly when that timer is enabled, and the Control Center's Affichage page flips it. |
+| `macarchy-sun` | Prints today's sunrise and sunset for the shared location (`~/.config/omarchy/dynamic-wallpaper.json`). |
+| `macarchy-locate` | Detects the machine's location (ip-api.com) and stores it in the shared location file, for the aquarium, the dynamic wallpaper and the auto appearance alike. |
 ```
 
 - [ ] **Step 2: SKILL.md**
 
-In the tools table line that lists `omarchy-auto-appearance`, add `omarchy-sun`, `omarchy-locate` to the same cell. After the `dynamic-wallpaper.json` bullet (the one ending "shows what the user wants."), add:
+In the tools table line that lists `macarchy-auto-appearance`, add `macarchy-sun`, `macarchy-locate` to the same cell. After the `dynamic-wallpaper.json` bullet (the one ending "shows what the user wants."), add:
 
 ```markdown
-- That same `latitude`/`longitude` is ALSO what `omarchy-auto-appearance`
-  (via `omarchy-sun`) uses to switch Apple Glass ↔ Apple Glass Light at
-  sunrise/sunset. "Auto" appearance == `omarchy-auto-appearance.timer` is
+- That same `latitude`/`longitude` is ALSO what `macarchy-auto-appearance`
+  (via `macarchy-sun`) uses to switch Apple Glass ↔ Apple Glass Light at
+  sunrise/sunset. "Auto" appearance == `macarchy-auto-appearance.timer` is
   enabled; the Control Center's Affichage page and its Apparence tile flip
   that timer, so check `systemctl --user is-enabled
-  omarchy-auto-appearance.timer` before wondering why a theme "changed by
-  itself". `omarchy-locate` rewrites the coordinates from ip-api.com; the
+  macarchy-auto-appearance.timer` before wondering why a theme "changed by
+  itself". `macarchy-locate` rewrites the coordinates from ip-api.com; the
   aquarium only re-reads them on its next start.
 ```
 
 - [ ] **Step 3: Commit**
 
 ```bash
-cd ~/Work/omarchy-mac && git add README.md agents/skills/omarchy-asahi/SKILL.md && git commit -m "Document omarchy-sun, omarchy-locate and the Auto appearance state"
+cd ~/Work/macarchy-core && git add README.md agents/skills/omarchy-asahi/SKILL.md && git commit -m "Document macarchy-sun, macarchy-locate and the Auto appearance state"
 ```
 
 ---
@@ -1196,23 +1196,23 @@ cd ~/Work/omarchy-mac && git add README.md agents/skills/omarchy-asahi/SKILL.md 
 
 - [ ] **Step 1: Run the full test suite once more**
 
-Run: `cd ~/Work/omarchy-mac && python3 -m unittest discover -s tests -v 2>&1 | tail -3 && bash tests/test_auto_appearance.sh | tail -1 && bash tests/test_omarchy_locate.sh | tail -1`
+Run: `cd ~/Work/macarchy-core && python3 -m unittest discover -s tests -v 2>&1 | tail -3 && bash tests/test_auto_appearance.sh | tail -1 && bash tests/test_macarchy_locate.sh | tail -1`
 Expected: `OK`, `all passed`, `all passed`.
 
 - [ ] **Step 2: Install the scripts and units**
 
-Run: `cd ~/Work/omarchy-mac && ./install.sh 2>&1 | tail -5`
-Expected: no error. Because the timer unit already existed, `install.sh` must NOT enable it: `systemctl --user is-enabled omarchy-auto-appearance.timer` still prints `disabled`.
+Run: `cd ~/Work/macarchy-core && ./install.sh 2>&1 | tail -5`
+Expected: no error. Because the timer unit already existed, `install.sh` must NOT enable it: `systemctl --user is-enabled macarchy-auto-appearance.timer` still prints `disabled`.
 
 - [ ] **Step 3: Install the plugin — as its own command — then restart the shell in a second command**
 
-Run first: `rsync -a --delete ~/Work/omarchy-mac/shell-plugins/macarchy.control-center/ ~/.config/omarchy/plugins/macarchy.control-center/` (check how previous sessions installed it: `ls -la ~/.config/omarchy/plugins/ | grep control-center` — if it is a symlink into `~/Work`, skip the rsync).
+Run first: `rsync -a --delete ~/Work/macarchy-core/shell-plugins/macarchy.control-center/ ~/.config/omarchy/plugins/macarchy.control-center/` (check how previous sessions installed it: `ls -la ~/.config/omarchy/plugins/ | grep control-center` — if it is a symlink into `~/Work`, skip the rsync).
 Then, in a **separate** Bash call: `omarchy restart shell`.
 
 - [ ] **Step 4: Fix Paris → real location**
 
-Run: `omarchy-locate`
-Expected: `50.4… 4.4… Charleroi` (or wherever the machine is), then `jq '{latitude,longitude,set,mode}' ~/.config/omarchy/dynamic-wallpaper.json` shows the new coordinates with `set`/`mode` unchanged. `omarchy-sun` now prints Belgian times.
+Run: `macarchy-locate`
+Expected: `50.4… 4.4… Charleroi` (or wherever the machine is), then `jq '{latitude,longitude,set,mode}' ~/.config/omarchy/dynamic-wallpaper.json` shows the new coordinates with `set`/`mode` unchanged. `macarchy-sun` now prints Belgian times.
 
 - [ ] **Step 5: Screenshot the page**
 
@@ -1222,20 +1222,20 @@ Expected: the Apparence section shows the three chips (Sombre / Claire / Auto), 
 - [ ] **Step 6: Exercise Auto end to end (no synthetic clicks on this box — drive the same commands the QML runs)**
 
 ```bash
-bash -c "systemctl --user enable --now omarchy-auto-appearance.timer; exec omarchy-auto-appearance"
+bash -c "systemctl --user enable --now macarchy-auto-appearance.timer; exec macarchy-auto-appearance"
 sleep 6
-systemctl --user is-enabled omarchy-auto-appearance.timer   # enabled
-omarchy-auto-appearance status                                # enabled=yes want=<matches the hour>
+systemctl --user is-enabled macarchy-auto-appearance.timer   # enabled
+macarchy-auto-appearance status                                # enabled=yes want=<matches the hour>
 cat ~/.local/state/omarchy/current/theme.name                 # matches want
-systemctl --user list-timers omarchy-auto-appearance.timer    # next fire within 5 min
+systemctl --user list-timers macarchy-auto-appearance.timer    # next fire within 5 min
 ```
 
 Then re-open the page (`omarchy-shell macarchy.control-center page macarchy.cc.display`, `grim`): the Auto chip is lit and the sentence reads « Suit le soleil — lever HH:MM, coucher HH:MM. »; the home row summary reads « Auto · Clair » or « Auto · Sombre ».
 
 - [ ] **Step 7: Leave the machine in the state the user wants**
 
-Auto is the point of this feature: leave the timer **enabled**. Report the final `omarchy-auto-appearance status` line in the summary.
+Auto is the point of this feature: leave the timer **enabled**. Report the final `macarchy-auto-appearance status` line in the summary.
 
 - [ ] **Step 8: Update memory**
 
-Add to `~/.claude/projects/-home-phmatray-Work/memory/control-center-plugin.md` (Modules paragraph): Display's Apparence section drives `omarchy-auto-appearance.timer`; "Auto" == timer enabled; location comes from `dynamic-wallpaper.json` via `omarchy-locate`. One line in `MEMORY.md` is NOT needed (the existing entry covers the plugin).
+Add to `~/.claude/projects/-home-phmatray-Work/memory/control-center-plugin.md` (Modules paragraph): Display's Apparence section drives `macarchy-auto-appearance.timer`; "Auto" == timer enabled; location comes from `dynamic-wallpaper.json` via `macarchy-locate`. One line in `MEMORY.md` is NOT needed (the existing entry covers the plugin).

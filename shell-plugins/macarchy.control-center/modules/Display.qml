@@ -52,7 +52,7 @@ Item {
   readonly property bool lightMode: themeName === "apple-glass-light"
 
   // ---- automatic appearance: "Auto" means the systemd timer is enabled,
-  // read back from `omarchy-auto-appearance status`. Nothing else stores it.
+  // read back from `macarchy-auto-appearance status`. Nothing else stores it.
   property bool autoOn: false
   property string autoMode: "solar"      // "solar" | "schedule"
   property string sunrise: ""
@@ -110,10 +110,10 @@ Item {
   function alsAct() {
     if (alsState === "off") {
       alsState = "on"
-      Quickshell.execDetached(["omarchy-als", "daemon"])
+      Quickshell.execDetached(["macarchy-als", "daemon"])
     } else {
       alsState = alsState === "paused" ? "on" : "paused"
-      Quickshell.execDetached(["omarchy-als", "toggle"])
+      Quickshell.execDetached(["macarchy-als", "toggle"])
     }
     recheck.restart()
   }
@@ -124,12 +124,12 @@ Item {
     if (value === "auto") {
       autoOn = true
       Quickshell.execDetached(["bash", "-c",
-        "systemctl --user enable --now omarchy-auto-appearance.timer; exec omarchy-auto-appearance"])
+        "systemctl --user enable --now macarchy-auto-appearance.timer; exec macarchy-auto-appearance"])
     } else {
       autoOn = false
       themeName = value === "light" ? "apple-glass-light" : "apple-glass"
       Quickshell.execDetached(["bash", "-c",
-        "systemctl --user disable --now omarchy-auto-appearance.timer; exec omarchy-theme-set " + themeName])
+        "systemctl --user disable --now macarchy-auto-appearance.timer; exec omarchy-theme-set " + themeName])
     }
     slowRecheck.restart()
   }
@@ -192,7 +192,7 @@ Item {
 
   Process {
     id: alsProc
-    command: ["bash", "-c", "omarchy-als status 2>/dev/null | tail -1"]
+    command: ["bash", "-c", "macarchy-als status 2>/dev/null | tail -1"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -214,7 +214,7 @@ Item {
 
   Process {
     id: autoProc
-    command: ["omarchy-auto-appearance", "status"]
+    command: ["macarchy-auto-appearance", "status"]
     stdout: StdioCollector {
       waitForEnd: true
       onStreamFinished: {
@@ -255,10 +255,10 @@ Item {
 
   Process {
     id: locateProc
-    command: ["omarchy-locate"]
+    command: ["macarchy-locate"]
     onExited: function(exitCode) {
       mod.locating = false
-      // omarchy-locate re-applies the theme; give omarchy-theme-set time.
+      // macarchy-locate re-applies the theme; give omarchy-theme-set time.
       // refresh() clears locateFailed at its top, so set it after — otherwise
       // a failure here would be wiped by its own follow-up refresh.
       mod.refresh()
@@ -285,7 +285,7 @@ Item {
   }
 
   // Trailing-edge throttle, same shape as the panel backlight on the home:
-  // the settled value is what omarchy-als confirms over two polls and learns.
+  // the settled value is what macarchy-als confirms over two polls and learns.
   property bool kbdDragging: false
   property int pendingKbd: -1
 

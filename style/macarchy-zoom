@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# omarchy-zoom — macOS-style screen magnifier on Hyprland's cursor zoom.
+# macarchy-zoom — macOS-style screen magnifier on Hyprland's cursor zoom.
 #
-#   omarchy-zoom in|out|reset
+#   macarchy-zoom in|out|reset
 #
 # Bound to CTRL + two-finger scroll in bindings.lua, the macOS accessibility
 # zoom gesture. Zooming out below 1x just lands back at 1x, so "scroll out
@@ -12,7 +12,7 @@
 # (e.g. after a reload snapped zoom back to 1).
 set -euo pipefail
 
-STATE="${XDG_RUNTIME_DIR:-/tmp}/omarchy-zoom.state"
+STATE="${XDG_RUNTIME_DIR:-/tmp}/macarchy-zoom.state"
 STEP=1.15
 MAX=8.0
 
@@ -32,7 +32,7 @@ case "${1:-}" in
 in)    new=$(awk -v c="$cur" -v s="$STEP" -v m="$MAX" 'BEGIN { n = c * s; if (n > m) n = m; printf "%.4f", n }') ;;
 out)   new=$(awk -v c="$cur" -v s="$STEP" 'BEGIN { n = c / s; if (n < 1.02) n = 1; printf "%.4f", n }') ;;
 reset) new=1 ;;
-*)     echo "usage: omarchy-zoom in|out|reset" >&2; exit 1 ;;
+*)     echo "usage: macarchy-zoom in|out|reset" >&2; exit 1 ;;
 esac
 
 hyprctl eval "hl.config({ cursor = { zoom_factor = $new } })" >/dev/null

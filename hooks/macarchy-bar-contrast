@@ -2,4 +2,4 @@
 # theme-set hook: the theme just changed and its hook restarted the aquarium;
 # re-pick the bar text colour from the screen (the tool waits for the
 # aquarium layer before sampling). Runs after aquarium-theme alphabetically.
-exec omarchy-bar-contrast
+exec macarchy-bar-contrast

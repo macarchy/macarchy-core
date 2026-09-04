@@ -48,7 +48,7 @@ Item {
 
   function toggleBatteryLimit() {
     batteryLimited = !batteryLimited
-    Quickshell.execDetached(["omarchy-battery-limit", "toggle"])
+    Quickshell.execDetached(["macarchy-battery-limit", "toggle"])
     recheck.restart()
   }
 

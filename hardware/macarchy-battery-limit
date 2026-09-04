@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# omarchy-battery-limit — toggle the battery charge ceiling between 80% (limit
+# macarchy-battery-limit — toggle the battery charge ceiling between 80% (limit
 # on, kind to the cells) and 100% (travel mode, full charge).
 #
 # The sysfs thresholds are group-writable (wheel) via
@@ -33,7 +33,7 @@ status)
 	echo "charge window: $(cat "$START")-$(cat "$END")%  (battery now $(cat "$BAT/capacity")%)"
 	;;
 *)
-	echo "usage: omarchy-battery-limit [toggle|on|off|status]" >&2
+	echo "usage: macarchy-battery-limit [toggle|on|off|status]" >&2
 	exit 1
 	;;
 esac

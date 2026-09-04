@@ -1,10 +1,10 @@
 #!/bin/bash
-# tests/test_auto_appearance.sh — runs style/omarchy-auto-appearance against
-# fake omarchy-sun / omarchy / systemctl binaries and an injected clock.
+# tests/test_auto_appearance.sh — runs style/macarchy-auto-appearance against
+# fake macarchy-sun / omarchy / systemctl binaries and an injected clock.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-SCRIPT="$PWD/style/omarchy-auto-appearance"
+SCRIPT="$PWD/style/macarchy-auto-appearance"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config"
 mkdir -p "$HOME/.local/state/omarchy/current" "$XDG_CONFIG_HOME/omarchy" "$TMP/bin"
@@ -22,10 +22,10 @@ echo "systemctl $*" >> "$FAKE_LOG"
 echo "${FAKE_ENABLED:-disabled}"
 [[ ${FAKE_ENABLED:-disabled} == enabled ]]
 EOF
-cat > "$TMP/bin/omarchy-sun" <<'EOF'
+cat > "$TMP/bin/macarchy-sun" <<'EOF'
 #!/bin/bash
-echo "omarchy-sun $*" >> "$FAKE_LOG"
-[[ -n ${FAKE_SUN_FAIL:-} ]] && { echo "omarchy-sun: no location" >&2; exit 2; }
+echo "macarchy-sun $*" >> "$FAKE_LOG"
+[[ -n ${FAKE_SUN_FAIL:-} ]] && { echo "macarchy-sun: no location" >&2; exit 2; }
 if [[ -n ${FAKE_SUN:-} ]]; then echo "$FAKE_SUN"; else echo '{"state":"normal","sunrise":"06:57","sunset":"20:26"}'; fi
 EOF
 chmod +x "$TMP/bin"/*
@@ -71,13 +71,13 @@ reset; theme apple-glass; export FAKE_SUN_FAIL=1
 err=$(AUTO_APPEARANCE_NOW=12:00 "$SCRIPT" 2>&1); rc=$?
 check "sun failure exits 1" [ "$rc" -eq 1 ]
 check "sun failure changes nothing" not_called 'omarchy theme set'
-check "sun failure says so" grep -q 'omarchy-sun' <<<"$err"
+check "sun failure says so" grep -q 'macarchy-sun' <<<"$err"
 
 # --- schedule mode -----------------------------------------------------------
 reset; theme apple-glass; conf 'MODE=schedule' 'LIGHT_FROM=07:00' 'LIGHT_UNTIL=20:00'
 AUTO_APPEARANCE_NOW=12:00 "$SCRIPT"
 check "schedule: daytime switches to light" called 'omarchy theme set Apple Glass Light'
-check "schedule: never asks the sun" not_called 'omarchy-sun'
+check "schedule: never asks the sun" not_called 'macarchy-sun'
 
 reset; theme apple-glass-light; conf 'MODE=schedule' 'LIGHT_FROM=07:00' 'LIGHT_UNTIL=20:00'
 AUTO_APPEARANCE_NOW=20:00 "$SCRIPT"
@@ -106,7 +106,7 @@ reset; theme apple-glass; export FAKE_SUN='{"state":"up","sunrise":null,"sunset"
 out=$("$SCRIPT" status)
 check "status polar omits times" [ "$out" = "mode=solar enabled=no want=light" ]
 
-# --- garbled omarchy-sun output does not silently force a theme ---------------
+# --- garbled macarchy-sun output does not silently force a theme ---------------
 reset; theme apple-glass; export FAKE_SUN='{"state":""}'
 err=$(AUTO_APPEARANCE_NOW=12:00 "$SCRIPT" 2>&1); rc=$?
 check "empty state exits 1" [ "$rc" -eq 1 ]

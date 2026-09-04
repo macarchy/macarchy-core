@@ -9,9 +9,9 @@
 # verdict into ~/.config/omarchy/shell.toml, the machine-level override the
 # shell hot-reloads. It writes only when the verdict changes.
 #
-#   omarchy-bar-contrast            sample, decide, write if changed
-#   omarchy-bar-contrast status     print the sample and the verdict, write nothing
-#   omarchy-bar-contrast --sample '#rrggbb'   skip the capture (tests)
+#   macarchy-bar-contrast            sample, decide, write if changed
+#   macarchy-bar-contrast status     print the sample and the verdict, write nothing
+#   macarchy-bar-contrast --sample '#rrggbb'   skip the capture (tests)
 #
 # The ground moves underneath us: the appearance switcher swaps the theme and
 # the wallpaper rotator swaps the image, and a single grab can catch the
@@ -28,8 +28,8 @@ set -uo pipefail
 CONF="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/shell.toml"
 LIGHT_TEXT="#f5f5f7"; LIGHT_ACTIVE="#ff453a"
 DARK_TEXT="#1d1d1f";  DARK_ACTIVE="#d70015"
-BEGIN="# >>> omarchy-bar-contrast (managed; do not edit)"
-END="# <<< omarchy-bar-contrast"
+BEGIN="# >>> macarchy-bar-contrast (managed; do not edit)"
+END="# <<< macarchy-bar-contrast"
 
 CAPTURE_CMD=${OMARCHY_BAR_CONTRAST_CAPTURE:-}
 SETTLE_GAP=${OMARCHY_BAR_CONTRAST_SETTLE_GAP:-0.5}
@@ -42,7 +42,7 @@ while (($# > 0)); do
   case $1 in
     status) action=status; shift ;;
     --sample) sample=${2:-}; shift 2 ;;
-    *) echo "usage: omarchy-bar-contrast [status] [--sample '#rrggbb']" >&2; exit 2 ;;
+    *) echo "usage: macarchy-bar-contrast [status] [--sample '#rrggbb']" >&2; exit 2 ;;
   esac
 done
 
@@ -90,7 +90,7 @@ capture_once() {
   fi
   local shot out
   shot=$(mktemp --suffix=.png) || return 1
-  grim -g "$geom" "$shot" || { rm -f "$shot"; echo "omarchy-bar-contrast: grim failed" >&2; return 1; }
+  grim -g "$geom" "$shot" || { rm -f "$shot"; echo "macarchy-bar-contrast: grim failed" >&2; return 1; }
   out=$(magick "$shot" -scale '1x1!' -depth 8 -format '%[hex:u]' info:- 2>/dev/null | tr 'A-F' 'a-f')
   rm -f "$shot"
   [[ -n $out ]] && echo "#$out"
@@ -110,7 +110,7 @@ settled_sample() {
   for ((i = 0; i < SETTLE_TRIES; i++)); do
     ((i)) && sleep "$SETTLE_GAP"
     s=$(capture_once) || return 1
-    [[ $s =~ ^#[0-9a-f]{6}$ ]] || { echo "omarchy-bar-contrast: bad sample '$s'" >&2; return 1; }
+    [[ $s =~ ^#[0-9a-f]{6}$ ]] || { echo "macarchy-bar-contrast: bad sample '$s'" >&2; return 1; }
     v=$(verdict_of "$s")
     if [[ $v == "$last" ]]; then agree=$((agree + 1)); else agree=1; last=$v; fi
     ((agree >= SETTLE_AGREE)) && { echo "$s"; return 0; }
@@ -121,15 +121,15 @@ settled_sample() {
 if [[ -z $sample ]]; then
   if [[ -z $CAPTURE_CMD ]]; then
     for tool in grim magick hyprctl jq; do
-      command -v "$tool" >/dev/null || { echo "omarchy-bar-contrast: $tool missing" >&2; exit 1; }
+      command -v "$tool" >/dev/null || { echo "macarchy-bar-contrast: $tool missing" >&2; exit 1; }
     done
     geom=$(bar_geometry)
-    [[ $geom =~ ^-?[0-9]+,-?[0-9]+\ [0-9]+x[0-9]+$ ]] || { echo "omarchy-bar-contrast: no omarchy-bar layer" >&2; exit 1; }
+    [[ $geom =~ ^-?[0-9]+,-?[0-9]+\ [0-9]+x[0-9]+$ ]] || { echo "macarchy-bar-contrast: no omarchy-bar layer" >&2; exit 1; }
     wait_for_aquarium
   fi
   sample=$(settled_sample) || exit 1
 fi
-[[ $sample =~ ^#[0-9a-f]{6}$ ]] || { echo "omarchy-bar-contrast: bad sample '$sample'" >&2; exit 1; }
+[[ $sample =~ ^#[0-9a-f]{6}$ ]] || { echo "macarchy-bar-contrast: bad sample '$sample'" >&2; exit 1; }
 
 light_c=$(contrast "$LIGHT_TEXT" "$sample")
 dark_c=$(contrast "$DARK_TEXT" "$sample")

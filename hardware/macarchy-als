@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""omarchy-als - ambient-light auto-brightness for Omarchy on Apple Silicon.
+"""macarchy-als - ambient-light auto-brightness for Omarchy on Apple Silicon.
 
 Polls the AOP ambient light sensor and eases the panel backlight (and, in the
 dark, the keyboard backlight) toward a lux-based target, macOS style.
@@ -27,13 +27,13 @@ import time
 import tomllib
 
 HOME = os.path.expanduser("~")
-CONFIG_PATH = os.path.join(HOME, ".config/omarchy-als/config.toml")
-STATE_PATH = os.path.join(HOME, ".local/state/omarchy-als/state.json")
+CONFIG_PATH = os.path.join(HOME, ".config/macarchy-als/config.toml")
+STATE_PATH = os.path.join(HOME, ".local/state/macarchy-als/state.json")
 RUNTIME_DIR = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
-PID_PATH = os.path.join(RUNTIME_DIR, "omarchy-als.pid")
+PID_PATH = os.path.join(RUNTIME_DIR, "macarchy-als.pid")
 # Exists exactly while a running daemon is paused, so `status` (and the
 # control-center tile) can see what SIGUSR1 last did.
-PAUSED_PATH = os.path.join(RUNTIME_DIR, "omarchy-als.paused")
+PAUSED_PATH = os.path.join(RUNTIME_DIR, "macarchy-als.paused")
 
 PANEL_DEV = "apple-panel-bl"
 KBD_DEV = "kbd_backlight"
@@ -60,7 +60,7 @@ DEFAULTS = {
 
 
 def log(msg):
-    print(f"omarchy-als: {msg}", file=sys.stderr, flush=True)
+    print(f"macarchy-als: {msg}", file=sys.stderr, flush=True)
 
 
 def read_int(path):
@@ -78,7 +78,7 @@ def find_als():
                     return os.path.join(base, dev, "in_illuminance_input")
         except OSError:
             continue
-    raise SystemExit(f"omarchy-als: no {ALS_NAME} iio device found")
+    raise SystemExit(f"macarchy-als: no {ALS_NAME} iio device found")
 
 
 def load_config():
@@ -194,7 +194,7 @@ class Daemon:
             pass
         log("paused" if self.paused else "resumed")
         try:
-            # Mirrors onto the Touch Bar via omarchy-dfr's notification page.
+            # Mirrors onto the Touch Bar via macarchy-touchbar's notification page.
             subprocess.Popen(["notify-send", "-t", "3000", "Auto-brightness",
                               "paused" if self.paused else "resumed"])
         except OSError:
@@ -288,7 +288,7 @@ def acquire_lock():
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
-        raise SystemExit("omarchy-als: already running")
+        raise SystemExit("macarchy-als: already running")
     os.ftruncate(fd, 0)
     os.write(fd, str(os.getpid()).encode())
     return fd  # keep open for the lock's lifetime
@@ -322,9 +322,9 @@ def cmd_toggle():
         with open(PID_PATH) as f:
             pid = int(f.read().strip())
         os.kill(pid, signal.SIGUSR1)
-        print("omarchy-als: toggled")
+        print("macarchy-als: toggled")
     except (OSError, ValueError):
-        raise SystemExit("omarchy-als: daemon not running")
+        raise SystemExit("macarchy-als: daemon not running")
 
 
 def main():

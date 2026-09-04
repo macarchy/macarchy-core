@@ -15,23 +15,23 @@ JSON="${XDG_CONFIG_HOME:-$HOME/.config}/omarchy/dynamic-wallpaper.json"
 URL='http://ip-api.com/json/?fields=status,message,lat,lon,city'
 
 if [[ ! -f $JSON ]]; then
-  echo "omarchy-locate: $JSON is missing; nothing to update" >&2
+  echo "macarchy-locate: $JSON is missing; nothing to update" >&2
   exit 1
 fi
 
 if ! reply=$(curl -fsS --max-time 5 "$URL"); then
-  echo "omarchy-locate: détection impossible — hors ligne ? (curl a échoué)" >&2
+  echo "macarchy-locate: détection impossible — hors ligne ? (curl a échoué)" >&2
   exit 1
 fi
 
 status=$(jq -r '.status // empty' <<<"$reply" 2>/dev/null)
 if [[ $status != success ]]; then
-  echo "omarchy-locate: ip-api.com refused: $(jq -r '.message // "unexpected reply"' <<<"$reply" 2>/dev/null)" >&2
+  echo "macarchy-locate: ip-api.com refused: $(jq -r '.message // "unexpected reply"' <<<"$reply" 2>/dev/null)" >&2
   exit 1
 fi
 
 if ! jq -e '(.lat|type)=="number" and (.lon|type)=="number" and (.lat|fabs)<=90 and (.lon|fabs)<=180' <<<"$reply" >/dev/null 2>&1; then
-  echo "omarchy-locate: ip-api.com returned no usable coordinates" >&2
+  echo "macarchy-locate: ip-api.com returned no usable coordinates" >&2
   exit 1
 fi
 
@@ -43,12 +43,12 @@ tmp=$(mktemp "${JSON}.XXXXXX")
 trap 'rm -f "$tmp"' EXIT
 if ! jq --argjson lat "$lat" --argjson lon "$lon" '.latitude = $lat | .longitude = $lon' "$JSON" > "$tmp"; then
   rm -f "$tmp"
-  echo "omarchy-locate: could not rewrite $JSON" >&2
+  echo "macarchy-locate: could not rewrite $JSON" >&2
   exit 1
 fi
 chmod --reference="$JSON" "$tmp"
 mv -f "$tmp" "$JSON"
 
 echo "$lat $lon $city"
-omarchy-auto-appearance || true
+macarchy-auto-appearance || true
 exit 0

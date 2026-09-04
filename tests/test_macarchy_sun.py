@@ -11,12 +11,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parent.parent
-SCRIPT = ROOT / "style" / "omarchy-sun"
+SCRIPT = ROOT / "style" / "macarchy-sun"
 
 
 def load_script():
-    loader = importlib.machinery.SourceFileLoader("omarchy_sun", str(SCRIPT))
-    spec = importlib.util.spec_from_loader("omarchy_sun", loader)
+    loader = importlib.machinery.SourceFileLoader("macarchy_sun", str(SCRIPT))
+    spec = importlib.util.spec_from_loader("macarchy_sun", loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
     return module

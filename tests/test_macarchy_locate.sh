@@ -1,10 +1,10 @@
 #!/bin/bash
-# tests/test_omarchy_locate.sh — omarchy-locate against a fake curl and a fake
-# omarchy-auto-appearance.
+# tests/test_macarchy_locate.sh — macarchy-locate against a fake curl and a fake
+# macarchy-auto-appearance.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-SCRIPT="$PWD/style/omarchy-locate"
+SCRIPT="$PWD/style/macarchy-locate"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config"
 mkdir -p "$XDG_CONFIG_HOME/omarchy" "$TMP/bin"
@@ -18,9 +18,9 @@ echo "curl $*" >> "$FAKE_LOG"
 [[ -n ${FAKE_CURL_FAIL:-} ]] && exit 7
 if [[ -n ${FAKE_CURL:-} ]]; then echo "$FAKE_CURL"; else echo '{"status":"success","lat":50.4108,"lon":4.4446,"city":"Charleroi"}'; fi
 EOF
-cat > "$TMP/bin/omarchy-auto-appearance" <<'EOF'
+cat > "$TMP/bin/macarchy-auto-appearance" <<'EOF'
 #!/bin/bash
-echo "omarchy-auto-appearance $*" >> "$FAKE_LOG"
+echo "macarchy-auto-appearance $*" >> "$FAKE_LOG"
 EOF
 chmod +x "$TMP/bin"/*
 
@@ -37,7 +37,7 @@ check "latitude written" [ "$(jq -r .latitude "$JSON")" = "50.4108" ]
 check "longitude written" [ "$(jq -r .longitude "$JSON")" = "4.4446" ]
 check "other keys intact" [ "$(jq -c '.sets' "$JSON")" = '{"tahoe-beach":{"day":"a.jpg"}}' ]
 check "theme key intact" [ "$(jq -r .theme "$JSON")" = "apple-glass" ]
-check "applies the theme afterwards" grep -qx 'omarchy-auto-appearance ' "$FAKE_LOG"
+check "applies the theme afterwards" grep -qx 'macarchy-auto-appearance ' "$FAKE_LOG"
 check "asks ip-api over http" grep -q 'ip-api.com/json' "$FAKE_LOG"
 check "preserves file mode" [ "$(stat -c %a "$JSON")" = "644" ]
 
@@ -46,7 +46,7 @@ err=$("$SCRIPT" 2>&1 >/dev/null); rc=$?
 check "curl failure exits 1" [ "$rc" -eq 1 ]
 check "curl failure leaves the file" [ "$(jq -r .latitude "$JSON")" = "48.8566" ]
 check "curl failure explains" grep -qi 'hors ligne\|offline\|curl' <<<"$err"
-check "curl failure does not apply" [ -z "$(grep 'omarchy-auto-appearance' "$FAKE_LOG")" ]
+check "curl failure does not apply" [ -z "$(grep 'macarchy-auto-appearance' "$FAKE_LOG")" ]
 
 reset; export FAKE_CURL='{"status":"fail","message":"private range"}'
 "$SCRIPT" 2>/dev/null; rc=$?
@@ -62,6 +62,6 @@ reset; export FAKE_CURL='{"status":"success","city":"Nowhere"}'
 err=$("$SCRIPT" 2>&1 >/dev/null); rc=$?
 check "no coordinates exits 1" [ "$rc" -eq 1 ]
 check "no coordinates leaves the file" [ "$(jq -r .latitude "$JSON")" = "48.8566" ]
-check "no coordinates does not apply" [ -z "$(grep 'omarchy-auto-appearance' "$FAKE_LOG")" ]
+check "no coordinates does not apply" [ -z "$(grep 'macarchy-auto-appearance' "$FAKE_LOG")" ]
 
 echo; [[ $fails -eq 0 ]] && echo "all passed" || { echo "$fails failed"; exit 1; }

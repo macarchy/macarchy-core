@@ -3,7 +3,7 @@
 # screen sample injected so no compositor is needed.
 set -uo pipefail
 cd "$(dirname "$0")/.."
-SCRIPT="$PWD/style/omarchy-bar-contrast"
+SCRIPT="$PWD/style/macarchy-bar-contrast"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config"
 mkdir -p "$XDG_CONFIG_HOME/omarchy"
@@ -31,7 +31,7 @@ check "same verdict: silent" [ -z "$out" ]
 check "light ground flips to dark text" grep -q '^text   = "#1d1d1f"$' "$CONF"
 check "still one [bar] section" [ "$(grep -c '^\[bar\]' "$CONF")" = 1 ]
 check "font still there" grep -q '^base-size = 14$' "$CONF"
-check "single managed block" [ "$(grep -c 'omarchy-bar-contrast' "$CONF")" = 2 ]
+check "single managed block" [ "$(grep -c 'macarchy-bar-contrast' "$CONF")" = 2 ]
 
 rm -f "$CONF"; "$SCRIPT" --sample '#003575' >/dev/null
 check "missing conf is created" grep -q '^text   = "#f5f5f7"$' "$CONF"

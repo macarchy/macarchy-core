@@ -1,9 +1,9 @@
-# omarchy-als - ambient-light auto-brightness.
+# macarchy-als - ambient-light auto-brightness.
 # All values optional; these are the defaults. After editing, restart with:
-#   pkill -x omarchy-als; setsid -f omarchy-als daemon
+#   pkill -x macarchy-als; setsid -f macarchy-als daemon
 #
 # You rarely need to edit the curve by hand: pressing the brightness keys
-# teaches the daemon an offset (stored in ~/.local/state/omarchy-als/), so it
+# teaches the daemon an offset (stored in ~/.local/state/macarchy-als/), so it
 # tracks your preference automatically.
 
 poll_seconds = 1.0

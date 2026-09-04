@@ -4,9 +4,9 @@
 The location is the one shared by the aquarium and the dynamic wallpaper:
 latitude/longitude in ~/.config/omarchy/dynamic-wallpaper.json. The math is
 the NOAA sunrise equation (good to about a minute), the same one
-macos-dynamic-wallpaper carries.
+macarchy-dynamic-wallpaper carries.
 
-    omarchy-sun [--lat N --lon N] [--date YYYY-MM-DD] [--json]
+    macarchy-sun [--lat N --lon N] [--date YYYY-MM-DD] [--json]
 
 Text output is two lines, `sunrise HH:MM` and `sunset  HH:MM`, in local time.
 When the sun never crosses the horizon that day both lines are omitted and the
@@ -110,7 +110,7 @@ def main(argv=None):
         try:
             lat, lon = load_location()
         except LocationError as exc:
-            print(f"omarchy-sun: {exc}", file=sys.stderr)
+            print(f"macarchy-sun: {exc}", file=sys.stderr)
             return 2
 
     result = sun_for_day(lat, lon, args.date or date.today())
