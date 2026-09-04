@@ -3,6 +3,10 @@ Description=Match the Omarchy theme to the time of day (macOS Auto appearance)
 After=graphical-session.target
 PartOf=graphical-session.target
 
+# Otherwise a broken appearance switch just leaves the theme stale and says
+# nothing. The notifier is shared and ships from macarchy-install.
+OnFailure=macarchy-failed@%n.service
+
 [Service]
 Type=oneshot
 ExecStart=%h/.local/bin/omarchy-auto-appearance
