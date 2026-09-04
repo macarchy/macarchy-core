@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.0](https://github.com/macarchy/macarchy-core/compare/v0.3.0...v0.4.0) (2026-09-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* rename to macarchy-core and move commands out of the omarchy-* namespace
+
+### Bug Fixes
+
+* **changelog:** restore the three entry texts to their commit subjects ([4c21e88](https://github.com/macarchy/macarchy-core/commit/4c21e8814784981891be918a8c57b6e92922a8c7))
+* **rename:** restore macos-dynamic-wallpaper and the dated design docs ([0e711f7](https://github.com/macarchy/macarchy-core/commit/0e711f7892debaf1607b796764dff2681ba9a217))
+
+
+### Code Refactoring
+
+* rename to macarchy-core and move commands out of the omarchy-* namespace ([17fb52d](https://github.com/macarchy/macarchy-core/commit/17fb52dbd8e48cbf43bd23f7ad53edb1cf8ca153))
+
 ## [0.3.0](https://github.com/macarchy/macarchy-core/compare/v0.2.1...v0.3.0) (2026-09-04)
 
 
