@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/macarchy/macarchy-core/compare/v0.5.0...v0.6.0) (2026-09-05)
+
+
+### Features
+
+* **agents:** a Claude Code status line that follows the Omarchy theme ([#16](https://github.com/macarchy/macarchy-core/issues/16)) ([4d50566](https://github.com/macarchy/macarchy-core/commit/4d50566ea56991c5601c92fefc1bf3b8cf43d340))
+
 ## [0.5.0](https://github.com/macarchy/macarchy-core/compare/v0.4.1...v0.5.0) (2026-09-04)
 
 
