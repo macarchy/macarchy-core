@@ -23,7 +23,7 @@ depends=('bash' 'python' 'brightnessctl')
 optdepends=('omarchy: the theme hooks and shell plugins target it'
             'grim: bar-contrast samples the screen with it'
             'imagemagick: bar-contrast reduces the sample with it'
-            'jq: reading the bar layer geometry'
+            'jq: reading the bar layer geometry, and the Claude Code status line'
             'hyprland: the gestures and key grammar')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('SKIP')

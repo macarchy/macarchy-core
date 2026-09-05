@@ -48,6 +48,21 @@ done
 mkdir -p "$HOME/.claude/skills"
 ln -sfn "$PWD/agents/skills/omarchy-asahi" "$HOME/.claude/skills/omarchy-asahi"
 
+# Claude Code's bottom bar. Symlinked, not copied, so the checkout stays the
+# source of truth. An existing statusLine is somebody's own choice: leave it.
+ln -sfn "$PWD/agents/claude-statusline.sh" "$HOME/.claude/statusline.sh"
+settings="$HOME/.claude/settings.json"
+if [[ -f $settings ]] && command -v jq >/dev/null; then
+    if ! jq -e 'has("statusLine")' "$settings" >/dev/null; then
+        tmp=$(mktemp)
+        jq '.statusLine = {"type": "command", "command": "bash ~/.claude/statusline.sh"}' \
+            "$settings" >"$tmp" && mv "$tmp" "$settings"
+        echo "Claude Code status line enabled"
+    fi
+else
+    echo "Claude Code not configured yet; run ./install.sh again after first launch to enable its status line"
+fi
+
 # Cmd-key grammar and the app switcher. On this machine Omarchy already made
 # ~/.config/hypr, but on a genuinely bare box it does not exist yet and, under
 # `set -e`, the install dies here before anything below it runs.

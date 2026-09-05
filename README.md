@@ -65,6 +65,24 @@ app without ever flashing UI. Escape or a click outside cancels; clicking an
 icon switches to it. The glass needs the theme to blur the
 `macarchy-switcher` layer namespace (the apple-glass themes do).
 
+## agents/ — Claude Code
+
+`claude-statusline.sh` is the bottom bar for the Claude Code CLI: model and
+reasoning effort, the worktree and branch you are in, an open PR and its review
+state, then a context-window gauge with the 5-hour and 7-day quota windows and
+what the session has cost. It stays quiet — a quota window or a cost only
+appears once it is worth a glance.
+
+It paints with the sixteen ANSI colors and nothing else, which is the whole
+point: the palette comes from the terminal, so the bar re-themes itself when
+Omarchy switches theme or flips light/dark. No theme hook, no second copy of
+the palette to keep in sync. `install.sh` symlinks it into `~/.claude/` and
+points `statusLine` at it, leaving a status line you already configured alone.
+
+`agents/skills/omarchy-asahi` is the companion machine skill, symlinked into
+`~/.claude/skills`: what an agent has to know about this laptop that the
+packaged `omarchy` skill gets wrong.
+
 ## Install
 
     ./install.sh          # scripts, hook, timer, example configs
