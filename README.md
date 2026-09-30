@@ -1,3 +1,5 @@
+![macarchy-core banner](.github/banner.png)
+
 # macarchy-core
 
 The macOS experience for [Omarchy](https://omarchy.org) on Apple Silicon —
