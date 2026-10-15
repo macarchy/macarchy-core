@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/macarchy/macarchy-core/compare/v0.6.0...v0.6.1) (2026-10-15)
+
+
+### Bug Fixes
+
+* **bar-contrast:** strip the pre-rename managed block ([#19](https://github.com/macarchy/macarchy-core/issues/19)) ([6492e9e](https://github.com/macarchy/macarchy-core/commit/6492e9ea76a5afb20c7de73e64ea7d567a20e261))
+
 ## [0.6.0](https://github.com/macarchy/macarchy-core/compare/v0.5.0...v0.6.0) (2026-09-05)
 
 
