@@ -30,6 +30,9 @@ LIGHT_TEXT="#f5f5f7"; LIGHT_ACTIVE="#ff453a"
 DARK_TEXT="#1d1d1f";  DARK_ACTIVE="#d70015"
 BEGIN="# >>> macarchy-bar-contrast (managed; do not edit)"
 END="# <<< macarchy-bar-contrast"
+# Pre-rename (omarchy-bar-contrast) block: a second [bar] table; strip it on every write.
+LEGACY_BEGIN="# >>> omarchy-bar-contrast (managed; do not edit)"
+LEGACY_END="# <<< omarchy-bar-contrast"
 
 CAPTURE_CMD=${OMARCHY_BAR_CONTRAST_CAPTURE:-}
 SETTLE_GAP=${OMARCHY_BAR_CONTRAST_SETTLE_GAP:-0.5}
@@ -156,13 +159,13 @@ echo "sample=$sample verdict=$verdict text=$text" >&2
 
 current=""
 [[ -f $CONF ]] && current=$(sed -n "/^$BEGIN\$/,/^$END\$/p" "$CONF")
-[[ $current == "$block" ]] && exit 0   # same verdict: no write, no shell reload
+[[ $current == "$block" ]] && ! grep -qxF "$LEGACY_BEGIN" "$CONF" && exit 0   # same verdict: no write, no shell reload
 
 mkdir -p "$(dirname "$CONF")"
 tmp=$(mktemp "$CONF.XXXXXX")
 trap 'rm -f "$tmp"' EXIT
 {
-  [[ -f $CONF ]] && sed "/^$BEGIN\$/,/^$END\$/d" "$CONF" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
+  [[ -f $CONF ]] && sed -e "/^$BEGIN\$/,/^$END\$/d" -e "/^$LEGACY_BEGIN\$/,/^$LEGACY_END\$/d" "$CONF" | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
   [[ -f $CONF && -s $CONF ]] && echo
   printf '%s\n' "$block"
 } > "$tmp"
