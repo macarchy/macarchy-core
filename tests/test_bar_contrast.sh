@@ -116,4 +116,15 @@ check "no capture tool is a skip, not a failure" [ "$rc" -eq 0 ]
 check "and it says why"                          grep -q 'nothing to sample' <<<"$err"
 check "and it leaves the config untouched"       [ "$(cat "$CONF")" = "$before" ]
 
+# --- the pre-rename block is stripped -----------------------------------------
+# The rename to macarchy-core changed the markers; the old omarchy-bar-contrast
+# block was left behind as a second [bar] table (invalid TOML), and the no-op
+# exit meant an unchanged verdict never cleaned it up.
+printf '[font]\nbase-size = 14\n' > "$CONF"
+"$SCRIPT" --sample '#040407' >/dev/null 2>&1
+printf '\n# >>> omarchy-bar-contrast (managed; do not edit)\n[bar]\ntext   = "#f5f5f7"\nactive = "#ff453a"\n# <<< omarchy-bar-contrast\n' >> "$CONF"
+"$SCRIPT" --sample '#040407' >/dev/null 2>&1
+check "legacy block stripped on an unchanged verdict" \
+  [ "$(grep -c '^\[bar\]$' "$CONF")" -eq 1 ]
+
 echo; [[ $fails -eq 0 ]] && echo "all passed" || { echo "$fails failed"; exit 1; }
